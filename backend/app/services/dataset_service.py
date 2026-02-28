@@ -11,7 +11,7 @@ from fastapi import HTTPException, UploadFile
 from app.core.db import engine
 from app.core.logging import get_logger
 from app.models.dataset_registry import DatasetRegistry
-from app.utils import handle_duplicate_content, handle_duplicate_name
+from app.utils import handle_duplicate_content, handle_duplicate_name, pull_db_schema, pull_db_column_description
 from app.services.ai_metadata import generate_column_descriptions
 from sqlalchemy import select
 
@@ -166,40 +166,15 @@ async def upload_dataset(file: UploadFile, db: AsyncSession):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 async def get_db_schema(dataset_id: str):
     try:
-        def _get_columns(connection):
-            inspector = inspect(connection)
-            
-            # Verify the table actually exists to prevent errors/SQL injection
-            if not inspector.has_table(dataset_id):
-                return None
-                
-            columns = inspector.get_columns(dataset_id)
-            return [
-                {"name": col["name"], "type": str(col["type"])}
-                for col in columns
-            ]
-
-        logger.info("Getting schema for dataset: %s", dataset_id)
-        async with engine.connect() as conn:
-            columns = await conn.run_sync(_get_columns)
+        columns = await pull_db_schema(dataset_id)
 
         if columns is None:
             logger.error("Dataset not found: %s", dataset_id)
             raise HTTPException(status_code=404, detail="Dataset not found")
             
-        # Also grab the descriptions from the registry table
-        from app.models.dataset_registry import DatasetRegistry
-        from sqlalchemy import select
-        
-        async with engine.begin() as conn:
-            query = select(DatasetRegistry.column_descriptions).where(DatasetRegistry.table_name == dataset_id)
-            result = await conn.execute(query)
-            descriptions = result.scalar_one_or_none()
-            
-        descriptions = descriptions if descriptions else {}
+        descriptions = await pull_db_column_description(dataset_id, DatasetRegistry)
         
         # Merge descriptions
         for col in columns:

@@ -3,27 +3,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import inspect
 from app.core.db import get_async_db, engine
 from app.services.ai_charts import chart_suggester_app
+from app.models.dataset_registry import DatasetRegistry
+from app.utils import pull_db_column_description, pull_db_schema
 
 router = APIRouter(prefix="/charts", tags=["charts"])
 
 @router.get("/suggest")
 async def suggest_charts(dataset_id: str, db: AsyncSession = Depends(get_async_db)):
     try:
-        # First, grab the schema just like we did in the datasets route
-        def _get_columns(connection):
-            inspector = inspect(connection)
-            if not inspector.has_table(dataset_id):
-                return None
-            return [
-                {"name": col["name"], "type": str(col["type"])}
-                for col in inspector.get_columns(dataset_id)
-            ]
-            
-        async with engine.connect() as conn:
-            columns = await conn.run_sync(_get_columns)
+        columns = await pull_db_schema(dataset_id)
 
         if columns is None:
+            logger.error("Dataset not found: %s", dataset_id)
             raise HTTPException(status_code=404, detail="Dataset not found")
+            
+        descriptions = await pull_db_column_description(dataset_id, DatasetRegistry)
+        
+        # Merge descriptions
+        for col in columns:
+            col["description"] = descriptions.get(col["name"], "")
 
         # Now, invoke our LangGraph workflow!
         initial_state = {"schema_info": columns}
