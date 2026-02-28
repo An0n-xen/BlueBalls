@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from dotenv import load_dotenv
 
@@ -20,9 +20,9 @@ SessionLocal = async_sessionmaker(autocommit=False, autoflush=False, bind=engine
 
 Base = declarative_base()
 
-def get_db():
+async def get_async_db():
     db = SessionLocal()
     try:
         yield db
     finally:
-        db.close()
+        await db.close()
