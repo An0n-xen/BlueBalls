@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime
+from sqlalchemy import Column, String, DateTime, JSON
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 import datetime
@@ -11,5 +11,6 @@ class DatasetRegistry(Base):
     original_filename = Column(String, index=True, nullable=False)
     table_name = Column(String, unique=True, nullable=False)
     file_hash = Column(String, unique=True, index=True, nullable=False)
+    column_descriptions = Column(JSON, default=dict)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)

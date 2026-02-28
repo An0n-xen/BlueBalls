@@ -12,6 +12,8 @@ from app.core.db import engine
 from app.core.logging import get_logger
 from app.models.dataset_registry import DatasetRegistry
 from app.utils import handle_duplicate_content, handle_duplicate_name
+from app.services.ai_metadata import generate_column_descriptions
+from sqlalchemy import select
 
 logger = get_logger(__name__)
 
@@ -61,11 +63,18 @@ async def upload_dataset(file: UploadFile, db: AsyncSession):
         # 3. Infer Schema and dynamically create SQLAlchemy Table
         metadata = MetaData()
         columns = []
+        
+        # Build sample data for AI Metadata Generation
+        sample_data = {}
 
         logger.info("Inferring schema and dynamically creating SQLAlchemy Table")
         for col_name, dtype in df.dtypes.items():
             # Sanitize column names for SQL safety 
             safe_col_name = str(col_name).strip().lower().replace(" ", "_").replace("-", "_")
+
+            # Store max 10 non-empty samples for the LLM metadata request
+            samples = df[col_name].dropna().astype(str).head(10).tolist()
+            sample_data[safe_col_name] = samples
 
             # Map pandas type to SQLAlchemy type
             sa_type = pandas_dtype_to_sqlalchemy_type(dtype)
@@ -136,11 +145,15 @@ async def upload_dataset(file: UploadFile, db: AsyncSession):
             async with engine.begin() as conn:
                 await conn.execute(dynamic_table.insert(), data_to_insert)
 
+        # Generate the AI descriptions using the extracted samples
+        column_descriptions = await generate_column_descriptions(sample_data)
+
         # Create a new registry entry
         new_registry = DatasetRegistry(
             original_filename=filename,
             table_name=table_name,
-            file_hash=file_hash
+            file_hash=file_hash,
+            column_descriptions=column_descriptions
         )
         db.add(new_registry)
         await db.commit()
@@ -176,6 +189,21 @@ async def get_db_schema(dataset_id: str):
         if columns is None:
             logger.error("Dataset not found: %s", dataset_id)
             raise HTTPException(status_code=404, detail="Dataset not found")
+            
+        # Also grab the descriptions from the registry table
+        from app.models.dataset_registry import DatasetRegistry
+        from sqlalchemy import select
+        
+        async with engine.begin() as conn:
+            query = select(DatasetRegistry.column_descriptions).where(DatasetRegistry.table_name == dataset_id)
+            result = await conn.execute(query)
+            descriptions = result.scalar_one_or_none()
+            
+        descriptions = descriptions if descriptions else {}
+        
+        # Merge descriptions
+        for col in columns:
+            col["description"] = descriptions.get(col["name"], "")
 
         return {
             "dataset_id": dataset_id,
