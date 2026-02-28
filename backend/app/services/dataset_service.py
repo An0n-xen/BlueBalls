@@ -1,10 +1,19 @@
 import io
 import uuid
 import pandas as pd
+import hashlib
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, Table, Column, Integer, String, Float, MetaData, inspect
+
 from fastapi import HTTPException, UploadFile
+
 from app.core.db import engine
+from app.core.logging import get_logger
+from app.models.dataset_registry import DatasetRegistry
+from app.utils import handle_duplicate_content, handle_duplicate_name
+
+logger = get_logger(__name__)
 
 # Helper function to convert pandas dtypes to SQLAlchemy types
 def pandas_dtype_to_sqlalchemy_type(dtype):
@@ -15,7 +24,7 @@ def pandas_dtype_to_sqlalchemy_type(dtype):
     
     return String
 
-async def upload_dataset(file: UploadFile):
+async def upload_dataset(file: UploadFile, db: AsyncSession):
     # 1. Validate file extension
     filename = file.filename.lower()
     if not (filename.endswith('.csv') or filename.endswith('.xlsx') or filename.endswith('.xls')):
@@ -25,12 +34,25 @@ async def upload_dataset(file: UploadFile):
         # 2. Read the CSV data into Pandas
         contents = await file.read()
 
+        # calculate the hash of the file contents
+        file_hash = hashlib.sha256(contents).hexdigest()
+
         # 2. Parse into Pandas DataFrame based on file type
         if filename.endswith('.csv'):
             df = pd.read_csv(io.BytesIO(contents))
         else:
             # Requires `openpyxl` to be installed for .xlsx files
             df = pd.read_excel(io.BytesIO(contents))
+
+        # check if the dataset already exists
+        existing_dataset = await handle_duplicate_content(DatasetRegistry, file_hash, db)
+        if existing_dataset:
+            logger.info("Exact file already exists. Skipping upload.")
+            return {"message": "Dataset already exists", "dataset_id": existing_dataset.table_name, "rows_inserted": 0}
+        
+
+        # check for duplicate file name
+        await handle_duplicate_name(DatasetRegistry, filename, db)    
 
         # We need a safely generated table name for this specific dataset
         dataset_id = str(uuid.uuid4()).replace("-", "_")
@@ -40,6 +62,7 @@ async def upload_dataset(file: UploadFile):
         metadata = MetaData()
         columns = []
 
+        logger.info("Inferring schema and dynamically creating SQLAlchemy Table")
         for col_name, dtype in df.dtypes.items():
             # Sanitize column names for SQL safety 
             safe_col_name = str(col_name).strip().lower().replace(" ", "_").replace("-", "_")
@@ -75,6 +98,7 @@ async def upload_dataset(file: UploadFile):
         
         # Deep clean the dictionary: Ensure types explicitly match the SQLAlchemy Column types
         data_to_insert = []
+        logger.info("Converting dataframe to list of dicts for SQLAlchemy insertion")
         for row in raw_data:
             clean_row = {}
             for col_obj in columns:
@@ -107,9 +131,19 @@ async def upload_dataset(file: UploadFile):
 
             data_to_insert.append(clean_row)
             
+        logger.info("Inserting data into table: %s", table_name)
         if data_to_insert:
             async with engine.begin() as conn:
                 await conn.execute(dynamic_table.insert(), data_to_insert)
+
+        # Create a new registry entry
+        new_registry = DatasetRegistry(
+            original_filename=filename,
+            table_name=table_name,
+            file_hash=file_hash
+        )
+        db.add(new_registry)
+        await db.commit()
 
         return {
             "message": "File uploaded and processed successfully",
@@ -134,10 +168,13 @@ async def get_db_schema(dataset_id: str):
                 {"name": col["name"], "type": str(col["type"])}
                 for col in columns
             ]
+
+        logger.info("Getting schema for dataset: %s", dataset_id)
         async with engine.connect() as conn:
             columns = await conn.run_sync(_get_columns)
 
         if columns is None:
+            logger.error("Dataset not found: %s", dataset_id)
             raise HTTPException(status_code=404, detail="Dataset not found")
 
         return {
@@ -145,4 +182,5 @@ async def get_db_schema(dataset_id: str):
             "columns": columns
         }
     except Exception as e:
+        logger.error("Error getting schema for dataset: %s",str(e))
         raise HTTPException(status_code=500, detail=str(e))

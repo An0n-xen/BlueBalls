@@ -11,6 +11,8 @@ LOG_FORMAT = (
     "%(message)s"
 )
 
+DATEFMT = "%Y-%m-%d %H:%M:%S"
+
 LOG_COLORS = {
     "DEBUG": "cyan",
     "INFO": "green",
