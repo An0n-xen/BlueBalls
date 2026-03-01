@@ -57,7 +57,7 @@ export function AppSidebar() {
           <span className="group-data-[collapsible=icon]:hidden">lueBalls</span>
         </div>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="flex flex-col justify-center">
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
