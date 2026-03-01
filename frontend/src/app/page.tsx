@@ -204,6 +204,13 @@ export default function AnalysisDashboard() {
     }
   }
 
+  const formatColumnName = (name: string) => {
+    return name
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  };
+
   return (
     <div className="flex flex-col h-screen w-full bg-zinc-950 font-sans text-foreground selection:bg-primary/30">
       
@@ -460,32 +467,47 @@ export default function AnalysisDashboard() {
                            }}
                          >
                            <table className="text-xs w-full max-w-none relative border-collapse text-left">
-                             <thead className="bg-[#09090b] sticky top-0 z-30 shadow-[0_1px_0_0_rgba(255,255,255,0.1)]">
-                               <tr className="border-white/10 hover:bg-transparent bg-[#09090b]">
-                                 <th className="font-semibold text-white/50 w-[50px] min-w-[50px] text-center sticky left-0 top-0 bg-[#09090b] z-40 border-r border-white/5 border-b border-white/10 shadow-[1px_0_0_0_rgba(255,255,255,0.05)] p-2">
-                                   #
-                                 </th>
-                                 {schema.map((col, idx) => (
-                                   <th key={idx} className="font-semibold text-white/80 whitespace-nowrap min-w-[120px] bg-[#09090b] sticky top-0 z-30 border-b border-white/10 p-2 align-middle">
-                                     <div className="flex flex-col gap-1 py-1">
-                                        <span>{col.name}</span>
-                                        <span className="text-[10px] text-primary/70 font-mono tracking-wider">{col.type}</span>
-                                     </div>
+                               <thead className="bg-[#09090b]/90 backdrop-blur-md sticky top-0 z-30 shadow-[0_1px_0_0_rgba(255,255,255,0.05)]">
+                                 <tr className="border-white/5 hover:bg-transparent bg-transparent">
+                                   <th className="font-semibold text-white/50 w-[50px] min-w-[50px] text-center sticky left-0 top-0 bg-[#09090b]/90 backdrop-blur-xl z-40 border-r border-white/5 border-b border-white/[0.05] p-3">
+                                     #
                                    </th>
-                                 ))}
-                               </tr>
-                             </thead>
-                             <tbody>
-                               {rawData.map((row, rowIdx) => (
-                                 <tr key={rowIdx} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                                   <td className="font-mono text-muted-foreground/60 w-[50px] min-w-[50px] text-center sticky left-0 bg-[#09090b] z-20 backdrop-blur-md shadow-[1px_0_0_0_rgba(255,255,255,0.05)] border-r border-white/5 font-semibold text-xs border-b border-transparent p-2 align-middle">
-                                     {rowIdx + 1}
-                                   </td>
-                                   {schema.map((col, colIdx) => (
-                                      <td key={colIdx} className="font-mono text-muted-foreground whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px] p-2 align-middle" title={String(row[col.name])}>
-                                        {row[col.name] === null ? <span className="opacity-30 italic">null</span> : String(row[col.name])}
-                                      </td>
+                                   {schema.map((col, idx) => (
+                                     <th key={idx} className="font-semibold text-white/90 whitespace-nowrap min-w-[180px] bg-[#09090b]/90 backdrop-blur-xl sticky top-0 z-30 border-b border-white/[0.05] p-3 align-bottom transition-colors hover:bg-white/[0.02]">
+                                       <div className="flex flex-col gap-1.5 py-1">
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-[13px] tracking-tight">{formatColumnName(col.name)}</span>
+                                            <span className="h-5 px-1.5 flex items-center justify-center rounded-full text-[9px] font-mono tracking-wider border border-white/10 bg-white/5 text-muted-foreground whitespace-nowrap overflow-hidden">
+                                              {col.type}
+                                            </span>
+                                          </div>
+                                          {col.description && (
+                                            <span className="text-[11px] text-muted-foreground/50 font-normal max-w-xs truncate block">
+                                              {col.description}
+                                            </span>
+                                          )}
+                                       </div>
+                                     </th>
                                    ))}
+                                 </tr>
+                               </thead>
+                               <tbody>
+                                 {rawData.map((row, rowIdx) => (
+                                   <tr key={rowIdx} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                                     <td className="font-mono text-muted-foreground/60 w-[50px] min-w-[50px] text-center sticky left-0 bg-[#09090b]/90 z-20 backdrop-blur-xl border-r border-white/5 font-semibold text-xs border-b border-transparent p-3 align-middle">
+                                       {rowIdx + 1}
+                                     </td>
+                                     {schema.map((col, colIdx) => (
+                                        <td key={colIdx} className="text-white/80 whitespace-nowrap overflow-hidden text-ellipsis max-w-[280px] p-3 align-middle text-sm" title={String(row[col.name])}>
+                                          {row[col.name] === null ? (
+                                             <span className="opacity-30 italic text-xs">null</span>
+                                          ) : (
+                                             <span className={['INTEGER', 'FLOAT', 'DOUBLE', 'NUMBER'].includes(col.type.toUpperCase()) ? "font-mono text-white/60 text-xs" : "font-sans tracking-wide"}>
+                                               {String(row[col.name])}
+                                             </span>
+                                          )}
+                                        </td>
+                                     ))}
                                  </tr>
                                ))}
                                {rawData.length === 0 && !isFetchingData && (
@@ -511,32 +533,32 @@ export default function AnalysisDashboard() {
 
                   {/* Right: Schema Outline */}
                   <div className="xl:col-span-1">
-                     <Card className="border-border/10 bg-white text-black shadow-xl h-[calc(100vh-14rem)] flex flex-col rounded-xl overflow-hidden">
-                       <CardHeader className="p-4 border-b border-black/5 bg-zinc-50 shrink-0 flex flex-row items-center justify-between">
+                     <Card className="border-white/5 bg-[#09090b] text-white shadow-xl h-[calc(100vh-14rem)] flex flex-col rounded-xl overflow-hidden relative">
+                       <CardHeader className="p-4 border-b border-white/[0.03] bg-transparent shrink-0 flex flex-row items-center justify-between">
                          <div className="flex items-center gap-2">
-                           <LayoutGrid className="w-4 h-4 text-muted-foreground" />
-                           <CardTitle className="text-sm font-semibold">Hide Summary</CardTitle>
+                           <LayoutGrid className="w-4 h-4 text-muted-foreground/70" />
+                           <CardTitle className="text-sm font-semibold tracking-wide text-white/90">Hide Summary</CardTitle>
                          </div>
-                         <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:bg-black/5 rounded-full">
+                         <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground/70 hover:bg-white/5 hover:text-white rounded-full">
                            <Play className="w-3 h-3" /> {/* Replace with cross icon if desired */}
                          </Button>
                        </CardHeader>
-                       <CardContent className="p-0 flex-1 overflow-hidden">
-                          <ScrollArea className="h-full">
+                       <CardContent className="p-0 flex-1 overflow-hidden relative">
+                          <ScrollArea className="h-[calc(100vh-14rem-64px)] overflow-y-auto">
                             <div className="flex flex-col">
                               {schema.map((col, idx) => (
-                                <div key={idx} className="p-5 border-b border-black/5 hover:bg-black/[0.02] transition-colors flex flex-col gap-2">
+                                <div key={idx} className="p-5 border-b border-white/[0.03] hover:bg-white/[0.015] transition-colors flex flex-col gap-2">
                                   <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-semibold text-sm text-black">{col.name}</span>
-                                      <Badge variant="outline" className="text-[10px] py-0 px-2 h-5 border-black/10 text-muted-foreground bg-white rounded-full font-medium">
+                                    <div className="flex items-center gap-2.5">
+                                      <span className="font-semibold text-[13px] text-white/90 tracking-tight">{formatColumnName(col.name)}</span>
+                                      <Badge variant="outline" className="text-[10px] py-0 px-2 h-5 border-white/10 text-muted-foreground bg-white/5 rounded-full font-medium tracking-wider">
                                         {col.type === "TIMESTAMP" || col.type.includes("TIME") ? "Date" : col.type === "INTEGER" || col.type === "FLOAT" || col.type === "DOUBLE PRECISION" ? "Number" : "String"}
                                       </Badge>
                                     </div>
-                                    <ChevronRight className="w-4 h-4 text-muted-foreground/50 rotate-90" />
+                                    <ChevronRight className="w-4 h-4 text-white/20 rotate-90" />
                                   </div>
-                                  <p className="text-sm text-muted-foreground/90 leading-relaxed pr-6">
-                                    {col.description || <span className="italic opacity-50">No description available</span>}
+                                  <p className="text-[12px] text-muted-foreground/60 leading-relaxed pr-6 max-w-sm mt-0.5">
+                                    {col.description || <span className="italic opacity-30">No description available</span>}
                                   </p>
                                 </div>
                               ))}
