@@ -23,11 +23,17 @@ type ColumnDef = {
   description?: string;
 };
 
+type SuggestedChart = {
+  query: string;
+  sql_query: string;
+  chart_spec: any;
+};
+
 export default function AnalysisDashboard() {
   const [file, setFile] = useState<File | null>(null);
   const [datasetId, setDatasetId] = useState<string | null>(null);
   const [schema, setSchema] = useState<ColumnDef[]>([]);
-  const [suggestions, setSuggestions] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<SuggestedChart[] | null>(null);
   const [userQuery, setUserQuery] = useState("");
   const [generatedChart, setGeneratedChart] = useState<any>(null);
   const [generatedSql, setGeneratedSql] = useState<string | null>(null);
@@ -378,27 +384,53 @@ export default function AnalysisDashboard() {
               </Card>
             )}
 
-            {/* AI Suggestions Accordion */}
-            {suggestions && (
-              <Card className="border-primary/30 bg-black/40 backdrop-blur-md shadow-2xl animate-in fade-in slide-in-from-bottom-8">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-xl text-primary">
-                    <Sparkles className="w-5 h-5" />
-                    AI Chart Recommendations
-                  </CardTitle>
-                  <CardDescription>
-                    Generated using Qwen 2.5 72B based on the dataset schema.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="prose prose-invert prose-p:text-white/80 prose-headings:text-white prose-a:text-primary max-w-none rounded-md bg-white/5 p-6 border border-white/10">
-                    {/* A quick hack to render markdown loosely since we don't have react-markdown installed yet, just showing the raw text with pre-wrap */}
-                    <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed overflow-x-auto">
-                      {suggestions}
-                    </pre>
-                  </div>
-                </CardContent>
-              </Card>
+            {/* AI Generated Suggestions */}
+            {suggestions && suggestions.length > 0 && (
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 text-xl font-bold text-primary">
+                  <Sparkles className="w-6 h-6" />
+                  <h2>AI Recommended Dashboards</h2>
+                </div>
+                
+                {suggestions.map((chart, idx) => (
+                  <Card key={idx} className="border-primary/30 bg-black/40 backdrop-blur-md shadow-2xl animate-in fade-in slide-in-from-bottom-8">
+                    <CardHeader>
+                      <CardTitle className="text-lg text-white">
+                        {chart.query}
+                      </CardTitle>
+                      <CardDescription>Generated automatically from the inferred dataset schema.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-6">
+                      <div className="w-full h-[350px] bg-white/5 rounded-xl border border-white/10 p-4">
+                        <ReactECharts 
+                          option={{
+                            ...chart.chart_spec,
+                            backgroundColor: 'transparent',
+                            textStyle: { fontFamily: 'inherit' }
+                          }} 
+                          style={{ height: '100%', width: '100%' }} 
+                          theme="dark"
+                        />
+                      </div>
+                      
+                      <Accordion type="single" collapsible className="w-full">
+                        <AccordionItem value="sql" className="border-white/10">
+                          <AccordionTrigger className="text-sm font-medium text-muted-foreground hover:text-white pb-2">
+                            View Executed SQL
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <div className="bg-black/60 border border-white/10 rounded-md p-4 mt-2">
+                              <code className="text-blue-300 font-mono text-xs whitespace-pre-wrap">
+                                {chart.sql_query}
+                              </code>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             )}
 
             {/* Empty State */}

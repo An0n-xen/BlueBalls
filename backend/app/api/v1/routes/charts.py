@@ -28,17 +28,48 @@ async def suggest_charts(dataset_id: str, db: AsyncSession = Depends(get_async_d
         for col in columns:
             col["description"] = descriptions.get(col["name"], "")
 
-        # Now, invoke our LangGraph workflow!
+        # 1. Ask AI to suggest 3 queries
         initial_state = {"schema_info": columns}
-        
-        # We use ainvoke for async execution
         result = await chart_suggester_app.ainvoke(initial_state)
+        queries = result.get("suggested_queries", [])
         
+        if not queries:
+             raise HTTPException(status_code=500, detail="Failed to generate AI chart suggestions.")
+
+        # 2. For each query, run the Text-to-SQL logic concurrently
+        import asyncio
+        async def generate_single_chart(query: str):
+            generator_state = {
+                "dataset_id": dataset_id,
+                "user_query": query,
+                "schema_info": columns
+            }
+            res = await chart_generator_app.ainvoke(generator_state)
+            
+            # If it failed to generate SQL, skip peacefully
+            if res.get("sql_error"):
+                return None
+                
+            spec = res.get("chart_spec", {}).get("chart_spec") if isinstance(res.get("chart_spec"), dict) and "chart_spec" in res.get("chart_spec") else res.get("chart_spec")
+            
+            return {
+                "query": query,
+                "sql_query": res.get("sql_query"),
+                "chart_spec": spec
+            }
+
+        chart_tasks = [generate_single_chart(q) for q in queries]
+        generated_charts = await asyncio.gather(*chart_tasks)
+        
+        # Filter out any that failed
+        successful_charts = [c for c in generated_charts if c and c.get("chart_spec")]
+
         return {
             "dataset_id": dataset_id,
-            "suggestions": result["suggestions"]
+            "suggestions": successful_charts
         }
     except Exception as e:
+        logger.error(f"Error suggesting charts: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 class ChartGenerateRequest(BaseModel):
