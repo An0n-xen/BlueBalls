@@ -50,6 +50,7 @@ export default function AnalysisDashboard() {
   const [pageIndex, setPageIndex] = useState(0);
   const pageSize = 50;
   const [isFetchingData, setIsFetchingData] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   
   const [isUploading, setIsUploading] = useState(false);
   const [isFetchingSchema, setIsFetchingSchema] = useState(false);
@@ -69,6 +70,7 @@ export default function AnalysisDashboard() {
       setRawData([]);
       setTotalRows(0);
       setPageIndex(0);
+      setIsLoadingMore(false);
       setError(null);
     }
   }, []);
@@ -120,11 +122,16 @@ export default function AnalysisDashboard() {
     }
   };
 
-  const fetchRawData = async (id: string, page: number) => {
-    setIsFetchingData(true);
+  const fetchRawData = async (id: string, page: number, append = false) => {
+    if (append) setIsLoadingMore(true);
+    else setIsFetchingData(true);
     try {
       const resp = await axios.get(`/dataset/${id}/data?limit=${pageSize}&offset=${page * pageSize}`);
-      setRawData(resp.data.data);
+      if (append) {
+        setRawData(prev => [...prev, ...resp.data.data]);
+      } else {
+        setRawData(resp.data.data);
+      }
       setTotalRows(resp.data.total);
       setPageIndex(page);
     } catch (err) {
@@ -132,6 +139,7 @@ export default function AnalysisDashboard() {
       setError(e.response?.data?.detail || "Failed to fetch data");
     } finally {
       setIsFetchingData(false);
+      setIsLoadingMore(false);
     }
   };
 
@@ -426,7 +434,7 @@ export default function AnalysisDashboard() {
                   {/* Left: Main Data Table */}
                   <div className="xl:col-span-3 flex flex-col gap-4">
                      <Card className="border-white/5 bg-[#09090b] shadow-2xl overflow-hidden flex flex-col h-[calc(100vh-14rem)] rounded-xl relative">
-                       <div className="h-14 px-5 flex items-center shrink-0">
+                       <div className="h-4 px-5 flex items-center shrink-0">
                          <div className="flex items-center gap-2">
                            <FileText className="w-4 h-4 text-muted-foreground/70" />
                            <span className="text-sm font-semibold text-white/90 tracking-wide">
@@ -440,7 +448,17 @@ export default function AnalysisDashboard() {
                               <Loader2 className="w-8 h-8 animate-spin text-primary" />
                             </div>
                          )}
-                         <div className="h-[calc(100vh-14rem-6rem)] w-full overflow-auto bg-black/20 rounded-b-xl border-t-0 p-0 relative">
+                         <div 
+                           className="h-[calc(100vh-14rem-6rem)] w-full overflow-auto bg-black/20 rounded-b-xl border-t-0 p-0 relative"
+                           onScroll={(e) => {
+                             const target = e.currentTarget;
+                             if (target.scrollHeight - target.scrollTop <= target.clientHeight + 100) {
+                               if (!isLoadingMore && !isFetchingData && rawData.length < totalRows && datasetId) {
+                                 fetchRawData(datasetId, pageIndex + 1, true);
+                               }
+                             }
+                           }}
+                         >
                            <table className="text-xs w-full max-w-none relative border-collapse text-left">
                              <thead className="bg-[#09090b] sticky top-0 z-30 shadow-[0_1px_0_0_rgba(255,255,255,0.1)]">
                                <tr className="border-white/10 hover:bg-transparent bg-[#09090b]">
@@ -461,7 +479,7 @@ export default function AnalysisDashboard() {
                                {rawData.map((row, rowIdx) => (
                                  <tr key={rowIdx} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                                    <td className="font-mono text-muted-foreground/60 w-[50px] min-w-[50px] text-center sticky left-0 bg-[#09090b] z-20 backdrop-blur-md shadow-[1px_0_0_0_rgba(255,255,255,0.05)] border-r border-white/5 font-semibold text-xs border-b border-transparent p-2 align-middle">
-                                     {(pageIndex * pageSize) + rowIdx + 1}
+                                     {rowIdx + 1}
                                    </td>
                                    {schema.map((col, colIdx) => (
                                       <td key={colIdx} className="font-mono text-muted-foreground whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px] p-2 align-middle" title={String(row[col.name])}>
@@ -476,6 +494,13 @@ export default function AnalysisDashboard() {
                                       No data found.
                                     </td>
                                   </tr>
+                               )}
+                               {isLoadingMore && (
+                                 <tr>
+                                   <td colSpan={schema.length + 1} className="text-center p-4">
+                                     <Loader2 className="w-5 h-5 animate-spin text-primary mx-auto" />
+                                   </td>
+                                 </tr>
                                )}
                              </tbody>
                            </table>
