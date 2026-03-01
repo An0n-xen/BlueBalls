@@ -50,11 +50,11 @@ export function AppSidebar() {
   return (
     <Sidebar variant="inset" collapsible="icon">
       <SidebarHeader className="border-b border-border/10 p-4">
-        <div className="flex items-center gap-2 text-primary font-bold text-lg">
-          <div className="bg-primary text-black p-1 rounded">
-             <span className="leading-none text-xl font-black">P</span>
+        <div className="flex items-center text-primary font-bold text-lg tracking-tight">
+          <div className="bg-blue-600 text-white px-1.5 py-0.5 rounded-md mr-0.5">
+             <span className="leading-none text-xl font-black">B</span>
           </div>
-          <span className="group-data-[collapsible=icon]:hidden">Polymath</span>
+          <span className="group-data-[collapsible=icon]:hidden">lueBalls</span>
         </div>
       </SidebarHeader>
       <SidebarContent>
