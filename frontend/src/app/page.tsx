@@ -39,6 +39,9 @@ export default function AnalysisDashboard() {
   const [file, setFile] = useState<File | null>(null);
   const [datasetId, setDatasetId] = useState<string | null>(null);
   const [schema, setSchema] = useState<ColumnDef[]>([]);
+  const [datasetDescription, setDatasetDescription] = useState<string | null>(null);
+  const [datasetRowCount, setDatasetRowCount] = useState<number | null>(null);
+  const [datasetColumnCount, setDatasetColumnCount] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<SuggestedChart[] | null>(null);
   const [userQuery, setUserQuery] = useState("");
   const [generatedChart, setGeneratedChart] = useState<any>(null);
@@ -63,6 +66,9 @@ export default function AnalysisDashboard() {
       setFile(acceptedFiles[0]);
       setDatasetId(null);
       setSchema([]);
+      setDatasetDescription(null);
+      setDatasetRowCount(null);
+      setDatasetColumnCount(null);
       setSuggestions(null);
       setGeneratedChart(null);
       setGeneratedSql(null);
@@ -114,6 +120,9 @@ export default function AnalysisDashboard() {
     try {
       const resp = await axios.get(`/dataset/${id}/schema`);
       setSchema(resp.data.columns);
+      setDatasetDescription(resp.data.description);
+      setDatasetRowCount(resp.data.row_count);
+      setDatasetColumnCount(resp.data.column_count);
     } catch (err) {
       const e = err as any;
       setError(e.response?.data?.detail || "Failed to fetch schema");
@@ -436,10 +445,10 @@ export default function AnalysisDashboard() {
 
               {/* DATA TAB */}
               <TabsContent value="data" className="focus-visible:outline-none">
-                <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 h-full flex-1">
                   
                   {/* Left: Main Data Table */}
-                  <div className="xl:col-span-3 flex flex-col gap-4">
+                  <div className="xl:col-span-8 flex flex-col gap-4">
                      <Card className="border-white/5 bg-[#09090b] shadow-2xl overflow-hidden flex flex-col h-[calc(100vh-14rem)] rounded-xl relative">
                        <div className="h-4 px-5 flex items-center shrink-0">
                          <div className="flex items-center gap-2">
@@ -532,7 +541,7 @@ export default function AnalysisDashboard() {
                   </div>
 
                   {/* Right: Schema Outline */}
-                  <div className="xl:col-span-1">
+                  <div className="xl:col-span-4">
                      <Card className="border-white/5 bg-[#09090b] text-white shadow-xl h-[calc(100vh-14rem)] flex flex-col rounded-xl overflow-hidden relative">
                        <CardHeader className="p-4 border-b border-white/[0.03] bg-transparent shrink-0 flex flex-row items-center justify-between">
                          <div className="flex items-center gap-2">
@@ -546,6 +555,31 @@ export default function AnalysisDashboard() {
                        <CardContent className="p-0 flex-1 overflow-hidden relative">
                           <ScrollArea className="h-[calc(100vh-14rem-64px)] overflow-y-auto">
                             <div className="flex flex-col">
+                              {/* AI Overview Header */}
+                              {datasetDescription && (
+                                <div className="p-5 border-b border-white/[0.03]">
+                                  <p className="text-[13px] leading-relaxed text-white/80 font-medium">
+                                    {datasetDescription}
+                                  </p>
+                                  <div className="flex items-center gap-12 mt-6">
+                                    <div className="flex flex-col gap-1.5">
+                                      <span className="text-[11px] text-muted-foreground/60 font-medium tracking-wide">Rows</span>
+                                      <div className="flex items-center gap-2 text-white/90">
+                                        <LayoutGrid className="w-3.5 h-3.5 opacity-50" />
+                                        <span className="text-sm font-semibold tracking-tight">{datasetRowCount?.toLocaleString() || '0'}</span>
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-col gap-1.5">
+                                      <span className="text-[11px] text-muted-foreground/60 font-medium tracking-wide">Columns</span>
+                                      <div className="flex items-center gap-2 text-white/90">
+                                        <LayoutGrid className="w-3.5 h-3.5 opacity-50" />
+                                        <span className="text-sm font-semibold tracking-tight">{datasetColumnCount?.toLocaleString() || '0'}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              
                               {schema.map((col, idx) => (
                                 <div key={idx} className="p-5 border-b border-white/[0.03] hover:bg-white/[0.015] transition-colors flex flex-col gap-2">
                                   <div className="flex items-center justify-between">

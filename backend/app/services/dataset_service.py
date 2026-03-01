@@ -12,7 +12,7 @@ from app.core.db import engine
 from app.core.logging import get_logger
 from app.models.dataset_registry import DatasetRegistry
 from app.utils import handle_duplicate_content, handle_duplicate_name, pull_db_schema, pull_db_column_description
-from app.services.ai_metadata import generate_column_descriptions
+from app.services.ai_metadata import generate_column_descriptions, generate_dataset_description
 from sqlalchemy import select
 
 logger = get_logger(__name__)
@@ -147,12 +147,16 @@ async def upload_dataset(file: UploadFile, db: AsyncSession):
 
         # Generate the AI descriptions using the extracted samples
         column_descriptions = await generate_column_descriptions(sample_data)
+        dataset_description = await generate_dataset_description(sample_data, filename)
 
         # Create a new registry entry
         new_registry = DatasetRegistry(
             original_filename=filename,
             table_name=table_name,
             file_hash=file_hash,
+            description=dataset_description,
+            row_count=len(data_to_insert),
+            column_count=len(columns),
             column_descriptions=column_descriptions
         )
         db.add(new_registry)
@@ -174,6 +178,9 @@ async def get_db_schema(dataset_id: str):
             logger.error("Dataset not found: %s", dataset_id)
             raise HTTPException(status_code=404, detail="Dataset not found")
             
+        from app.utils import pull_dataset_overview
+        
+        overview = await pull_dataset_overview(dataset_id, DatasetRegistry)
         descriptions = await pull_db_column_description(dataset_id, DatasetRegistry)
         
         # Merge descriptions
@@ -182,6 +189,9 @@ async def get_db_schema(dataset_id: str):
 
         return {
             "dataset_id": dataset_id,
+            "description": overview.get("description") if overview else None,
+            "row_count": overview.get("row_count") if overview else None,
+            "column_count": overview.get("column_count") if overview else None,
             "columns": columns
         }
     except Exception as e:

@@ -31,3 +31,33 @@ async def generate_column_descriptions(sample_data: dict) -> dict:
     except Exception as e:
         logger.error(f"Failed to generate descriptions: {e}")
         return {}
+
+async def generate_dataset_description(sample_data: dict, filename: str) -> str:
+    """
+    Takes a dict of column names mapping to lists of sample values and the filename.
+    Returns a cohesive 2-3 sentence paragraph summarizing the dataset's purpose.
+    """
+    try:
+        logger.info(f"Generating overall dataset description for {filename}...")
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "You are an expert data analyst assistant. "
+                       "Given the filename '{filename}' and a JSON dictionary of column names with sample values from the dataset, "
+                       "write a cohesive, professional 2-3 sentence paragraph summarizing what this dataset likely represents, "
+                       "the types of information it contains, and what it might be useful for analyzing. "
+                       "Return ONLY the plain text paragraph. Do not include markdown, greetings, or formatting."),
+            ("user", "{samples}")
+        ])
+        
+        # Output parser is implicit for plain text string returns
+        chain = prompt | description_llm
+        
+        response = await chain.ainvoke({
+            "filename": filename,
+            "samples": sample_data
+        })
+        
+        logger.info("Successfully generated overall dataset description.")
+        return str(response.content).strip()
+    except Exception as e:
+        logger.error(f"Failed to generate dataset description: {e}")
+        return ""

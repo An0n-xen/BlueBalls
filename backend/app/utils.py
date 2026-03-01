@@ -63,3 +63,27 @@ async def pull_db_column_description(dataset_id: str, dataset_registry: DatasetR
     except Exception as e:
         logger.error(f"Failed to pull schema description for dataset {dataset_id}: {e}")
         return None
+
+async def pull_dataset_overview(dataset_id: str, dataset_registry: DatasetRegistry):
+    try:
+        async with engine.begin() as conn:
+            query = select(
+                DatasetRegistry.description, 
+                DatasetRegistry.row_count, 
+                DatasetRegistry.column_count
+            ).where(DatasetRegistry.table_name == dataset_id)
+            
+            result = await conn.execute(query)
+            row = result.first()
+            
+            if row:
+                return {
+                    "description": row.description,
+                    "row_count": row.row_count,
+                    "column_count": row.column_count
+                }
+            return None
+
+    except Exception as e:
+        logger.error(f"Failed to pull dataset overview for {dataset_id}: {e}")
+        return None
