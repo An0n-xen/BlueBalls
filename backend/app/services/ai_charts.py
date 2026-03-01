@@ -11,7 +11,9 @@ async def suggest_charts_node(state: ChartAgentState):
     schema = state["schema_info"]
     
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are an expert data analyst. Given the following database schema, suggest 3 highly insightful charts that could be generated from this data. For each chart, explain WHY it would be useful. Format as markdown."),
+        ("system", """You are an expert data analyst. Given the following database schema, suggest 3 highly insightful charts that could be generated from this data.
+                       For each chart, explain WHY it would be useful.
+                       Format as markdown."""),
         ("user", "Schema: {schema}")
     ])
     
