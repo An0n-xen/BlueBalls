@@ -1,92 +1,64 @@
 "use client"
 
+import type { CSSProperties } from "react"
+
 import {
   Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar"
-import { PlusCircle, Settings, MessageSquare, Filter, LayoutDashboard, Database } from "lucide-react"
+import { PlusCircle, Settings, MessageSquare, Filter, Database } from "lucide-react"
 
 const items = [
   {
-    title: "Dashboard",
-    icon: LayoutDashboard,
-    isActive: true,
-  },
-  {
-    title: "Data",
-    icon: Database,
-    isActive: false,
-  },
-  {
     title: "Add",
     icon: PlusCircle,
-    isActive: false,
   },
   {
     title: "Setup",
     icon: Settings,
-    isActive: false,
   },
   {
     title: "Filter",
     icon: Filter,
-    isActive: false,
   },
   {
     title: "AI Chat",
     icon: MessageSquare,
-    isActive: false,
+  },
+  {
+    title: "Data",
+    icon: Database,
   },
 ]
 
 export function AppSidebar() {
   return (
-    <Sidebar variant="inset" collapsible="icon">
-      <SidebarHeader className="border-b border-border/10 p-4">
-        <div className="flex items-center text-primary font-bold text-lg tracking-tight">
-          <div className="bg-blue-600 text-white px-1.5 py-0.5 rounded-md mr-0.5">
-             <span className="leading-none text-xl font-black">B</span>
+    <Sidebar variant="sidebar" collapsible="none" className="!h-svh" style={{ "--sidebar-width": "4.5rem" } as CSSProperties}>
+      <SidebarHeader className="border-b border-border/10 px-2 py-4 shrink-0">
+        <div className="flex items-center justify-center text-primary font-bold text-lg tracking-tight">
+          <div className="bg-blue-600 text-white px-1.5 py-0.5 rounded-md">
+            <span className="leading-none text-xl font-black">B</span>
           </div>
-          <span className="group-data-[collapsible=icon]:hidden">lueBalls</span>
         </div>
       </SidebarHeader>
-      <SidebarContent className="flex flex-col justify-center">
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {items.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={item.isActive} tooltip={item.title} className="hover:text-primary transition-colors">
-                    <a href="#">
-                      <item.icon className="w-5 h-5" />
-                      <span>{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-      <SidebarFooter className="p-4 border-t border-border/10">
-         <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="Settings" className="hover:text-primary transition-colors">
-                <a href="#">
-                  <Settings className="w-5 h-5" />
-                  <span>Settings</span>
-                </a>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-      </SidebarFooter>
+
+      <div className="flex flex-1 flex-col items-center justify-center min-h-0">
+        <nav className="flex flex-col items-center gap-4">
+          {items.map((item) => (
+            <a
+              key={item.title}
+              href="#"
+              className="flex flex-col items-center justify-center gap-1.5 px-3 py-2 text-center text-sidebar-foreground/70 hover:text-primary transition-colors rounded-md hover:bg-sidebar-accent"
+            >
+              <item.icon className="h-4 w-4" />
+              <span className="text-[11px] leading-none">{item.title}</span>
+            </a>
+          ))}
+        </nav>
+      </div>
+
+      <SidebarFooter className="hidden" />
     </Sidebar>
   )
 }
