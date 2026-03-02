@@ -114,6 +114,10 @@ export default function AnalysisDashboard() {
   const [isGeneratingChart, setIsGeneratingChart] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // AI suggested query prompts (for "Suggested for you" section)
+  const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
+  const [isFetchingPrompts, setIsFetchingPrompts] = useState(false);
+
   // Drag and drop sensors for chart reordering
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -243,6 +247,44 @@ export default function AnalysisDashboard() {
       setError(e.response?.data?.detail || "Failed to get chart suggestions");
     } finally {
       setIsFetchingSuggestions(false);
+    }
+  };
+
+  const handleFetchSuggestedPrompts = async () => {
+    if (!datasetId) return;
+    setIsFetchingPrompts(true);
+    setError(null);
+    try {
+      const resp = await axios.get(`/charts/suggest-queries?dataset_id=${datasetId}`);
+      setSuggestedPrompts(resp.data.suggestions || []);
+    } catch (err) {
+      const e = err as any;
+      setError(e.response?.data?.detail || "Failed to get suggestions");
+    } finally {
+      setIsFetchingPrompts(false);
+    }
+  };
+
+  const handlePromptClick = async (prompt: string) => {
+    if (!datasetId) return;
+    setUserQuery(prompt);
+    setIsGeneratingChart(true);
+    setError(null);
+    setGeneratedChart(null);
+    setGeneratedSql(null);
+
+    try {
+      const resp = await axios.post("/charts/generate", {
+        dataset_id: datasetId,
+        user_query: prompt,
+      });
+      setGeneratedChart(resp.data.chart_spec);
+      setGeneratedSql(resp.data.sql_query);
+    } catch (err) {
+      const e = err as any;
+      setError(e.response?.data?.detail || "Failed to generate chart");
+    } finally {
+      setIsGeneratingChart(false);
     }
   };
 
@@ -592,6 +634,61 @@ export default function AnalysisDashboard() {
                         Use the Natural Language builder above or click "Auto-Generate Insights" to build your dashboard.
                       </p>
                    </div>
+                )}
+
+                {/* Suggested for You — Clickable Query Prompts */}
+                {datasetId && (
+                  <div className="pt-8 mt-4 border-t border-white/5">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-bold text-white/90 flex items-center gap-2">
+                        <Sparkles className="w-5 h-5 text-amber-400" />
+                        Suggested for you
+                      </h3>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleFetchSuggestedPrompts}
+                        disabled={isFetchingPrompts}
+                        className="text-xs text-white/40 hover:text-white/70"
+                      >
+                        {isFetchingPrompts ? <Loader2 className="w-3 h-3 animate-spin" /> : "Refresh"}
+                      </Button>
+                    </div>
+                    
+                    {suggestedPrompts.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {suggestedPrompts.map((prompt, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => handlePromptClick(prompt)}
+                            disabled={isGeneratingChart}
+                            className="group p-4 rounded-xl border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/5 transition-all text-left"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="p-2 rounded-lg bg-blue-500/10 group-hover:bg-blue-500/15 transition-colors shrink-0">
+                                <Sparkles className="w-4 h-4 text-blue-400" />
+                              </div>
+                              <span className="text-sm text-white/70 group-hover:text-white/90 transition-colors line-clamp-2 leading-relaxed">
+                                {prompt}
+                              </span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-6">
+                        <Button
+                          onClick={handleFetchSuggestedPrompts}
+                          disabled={isFetchingPrompts}
+                          variant="outline"
+                          className="border-white/10 text-white/50 hover:text-white hover:bg-white/5"
+                        >
+                          {isFetchingPrompts ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2 text-amber-400" />}
+                          Get Suggestions
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </TabsContent>
 

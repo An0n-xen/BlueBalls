@@ -9,14 +9,50 @@ from app.services.chart_generator import chart_generator_app
 from app.models.dataset_registry import DatasetRegistry
 from app.schemas.llm_schema import ChartGenerateRequest
 from app.utils import pull_db_column_description, pull_db_schema
-from pydantic import BaseModel
+from app.core.rate_limit import get_rate_limit
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/charts", tags=["charts"])
 
 
-@router.get("/suggest")
+@router.get(
+    "/suggest-queries",
+    dependencies=[Depends(get_rate_limit(limit=10, window_size_seconds=60))],
+)
+async def suggest_query_prompts(
+    dataset_id: str, db: AsyncSession = Depends(get_async_db)
+):
+    """Get only suggested query prompts (without generating charts)"""
+    try:
+        columns = await pull_db_schema(dataset_id)
+        if columns is None:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+
+        descriptions = await pull_db_column_description(dataset_id, DatasetRegistry)
+        for col in columns:
+            col["description"] = descriptions.get(col["name"], "")
+
+        initial_state = {"schema_info": columns}
+        result = await chart_suggester_app.ainvoke(initial_state)
+        queries = result.get("suggested_queries", [])
+
+        if not queries:
+            raise HTTPException(
+                status_code=500, detail="Failed to generate suggestions"
+            )
+
+        return {"dataset_id": dataset_id, "suggestions": queries}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error suggesting queries: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/suggest", dependencies=[Depends(get_rate_limit(limit=10, window_size_seconds=60))]
+)
 async def suggest_charts(dataset_id: str, db: AsyncSession = Depends(get_async_db)):
     try:
         columns = await pull_db_schema(dataset_id)
@@ -79,12 +115,10 @@ async def suggest_charts(dataset_id: str, db: AsyncSession = Depends(get_async_d
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# class ChartGenerateRequest(BaseModel):
-#     dataset_id: str
-#     user_query: str
-
-
-@router.post("/generate")
+@router.post(
+    "/generate",
+    dependencies=[Depends(get_rate_limit(limit=10, window_size_seconds=60))],
+)
 async def generate_chart(
     request: ChartGenerateRequest, db: AsyncSession = Depends(get_async_db)
 ):

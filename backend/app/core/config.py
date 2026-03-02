@@ -1,9 +1,10 @@
 from typing import Final, Literal
 from pydantic import Field, model_validator
 from pydantic_settings import (
-    BaseSettings, 
+    BaseSettings,
     SettingsConfigDict,
 )
+
 
 class Settings(BaseSettings):
     """Class to store all the settings of the application."""
@@ -11,15 +12,11 @@ class Settings(BaseSettings):
     APP_ENV: Literal["development", "production"] = "development"
     DATABASE_URL: str
     DEEPINFRA_API_KEY: str
-
-    # Logging settings
+    REDIS_URL: str
     LOG_LEVEL: str = "INFO"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="ignore"
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
     )
 
     @property
