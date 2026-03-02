@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     DEEPINFRA_API_KEY: str
     REDIS_URL: str
     LOG_LEVEL: str = "INFO"
+    RATE_LIMIT_TRUST_PROXY_HEADERS: bool = True
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
