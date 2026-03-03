@@ -60,8 +60,8 @@ export function AiChatPanel({ open, onClose }: { open: boolean, onClose: () => v
 
   return (
     <div 
-      className={`fixed z-50 flex flex-col w-[340px] h-[580px] rounded-xl bg-[#0f0f0f] text-gray-200 shadow-2xl border border-white/10 overflow-hidden transition-[opacity,transform] duration-200 ease-in-out origin-left ${open ? "opacity-100 scale-100 translate-x-0 pointer-events-auto" : "opacity-0 scale-95 -translate-x-4 pointer-events-none"}`}
-      style={{ left: position.x, top: position.y }}
+      className={`fixed z-50 flex flex-col w-[340px] h-[580px] rounded-xl bg-[#0f0f0f] text-gray-200 shadow-2xl border border-white/10 overflow-hidden transition-all duration-300 ease-out ${open ? "opacity-100 scale-100 translate-x-0 pointer-events-auto blur-0" : "opacity-0 scale-95 -translate-x-6 pointer-events-none blur-sm"}`}
+      style={{ left: position.x, top: position.y, transitionProperty: "opacity, transform, blur, box-shadow" }}
       onPointerDown={onPointerDownDrag}
       onPointerMove={onPointerMoveDrag}
       onPointerUp={onPointerUpDrag}

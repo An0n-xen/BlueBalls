@@ -116,8 +116,8 @@ export function AddBlockPanel({ open, onClose }: { open: boolean, onClose: () =>
 
   return (
     <div 
-      className={`fixed z-50 flex flex-col w-[340px] rounded-xl bg-popover text-popover-foreground shadow-xl border border-border/50 transition-[opacity,transform] duration-200 ease-in-out origin-left ${open ? "opacity-100 scale-100 translate-x-0 pointer-events-auto" : "opacity-0 scale-95 -translate-x-4 pointer-events-none"}`}
-      style={{ left: position.x, top: position.y }}
+      className={`fixed z-50 flex flex-col w-[340px] rounded-xl bg-popover text-popover-foreground shadow-xl border border-border/50 transition-all duration-300 ease-out ${open ? "opacity-100 scale-100 translate-x-0 pointer-events-auto blur-0" : "opacity-0 scale-95 -translate-x-6 pointer-events-none blur-sm"}`}
+      style={{ left: position.x, top: position.y, transitionProperty: "opacity, transform, blur, box-shadow" }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
