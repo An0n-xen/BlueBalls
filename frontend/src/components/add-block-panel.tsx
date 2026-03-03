@@ -149,6 +149,7 @@ export function AddBlockPanel({ open, onClose }: { open: boolean, onClose: () =>
               const eventMap: Record<string, string> = {
                 "Metric & KPI": "open-metric-kpi",
                 "Rich Text": "add-rich-text-block",
+                "Grid": "open-grid-panel",
               }
               const eventName = eventMap[item.title]
               return (

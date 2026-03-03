@@ -5,10 +5,12 @@ import { useDropzone } from "react-dropzone";
 import axios from "axios";
 import {
   UploadCloud, FileText, Database, Sparkles, Loader2, BarChart2,
-  Play, Share2, LayoutGrid, Plus, ChevronRight, ChevronLeft, Info, LayoutDashboard, GripVertical, Target, Trash2
+  Play, Share2, LayoutGrid, Plus, ChevronRight, ChevronLeft, Info, LayoutDashboard, GripVertical, Target, Trash2,
+  Search, Download, ArrowUpDown, ArrowUp, ArrowDown
 } from "lucide-react";
 import { MetricKpiPanel } from "@/components/metric-kpi-panel";
 import { RichTextBlock } from "@/components/rich-text-block";
+import { GridPanel } from "@/components/grid-panel";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -74,7 +76,20 @@ type KpiCard = {
 
 type DashboardBlock =
   | { type: "kpi"; id: string; data: KpiCard }
-  | { type: "richtext"; id: string; data: RichTextBlockData };
+  | { type: "richtext"; id: string; data: RichTextBlockData }
+  | { type: "grid"; id: string; data: GridBlockData };
+
+type GridBlockData = {
+  id: string;
+  columns: string[];
+  rows: Record<string, any>[];
+  sortColumn: string | null;
+  sortDirection: "asc" | "desc";
+  showSearchAndSorting: boolean;
+  showDownloadButton: boolean;
+  hideTitle: boolean;
+  datasetName: string;
+};
 
 // Sortable wrapper for dashboard blocks
 function SortableDashboardBlock({ id, children }: { id: string; children: React.ReactNode }) {
@@ -169,6 +184,9 @@ export default function AnalysisDashboard() {
   const [isMetricPanelOpen, setIsMetricPanelOpen] = useState(false);
   const [isComputingKpi, setIsComputingKpi] = useState(false);
 
+  // Grid Panel state
+  const [isGridPanelOpen, setIsGridPanelOpen] = useState(false);
+
   // Unified dashboard blocks (KPI cards + Rich Text blocks) — ordered
   const [dashboardBlocks, setDashboardBlocks] = useState<DashboardBlock[]>([]);
 
@@ -187,11 +205,14 @@ export default function AnalysisDashboard() {
         { type: "richtext", id, data: { id, content: "" } },
       ]);
     };
+    const handleGridPanel = () => setIsGridPanelOpen(true);
     window.addEventListener("open-metric-kpi", handleMetricKpi);
     window.addEventListener("add-rich-text-block", handleRichText);
+    window.addEventListener("open-grid-panel", handleGridPanel);
     return () => {
       window.removeEventListener("open-metric-kpi", handleMetricKpi);
       window.removeEventListener("add-rich-text-block", handleRichText);
+      window.removeEventListener("open-grid-panel", handleGridPanel);
     };
   }, []);
 
@@ -721,7 +742,132 @@ export default function AnalysisDashboard() {
                                 onContentChange={handleRichTextChange}
                                 onRemove={handleRemoveBlock}
                               />
-                            ) : null}
+                            ) : block.type === "grid" ? (() => {
+                              const grid = block.data;
+                              const GridBlockInner = () => {
+                                const [searchTerm, setSearchTerm] = React.useState("");
+                                const filteredRows = searchTerm
+                                  ? grid.rows.filter((row) =>
+                                      grid.columns.some((col) =>
+                                        String(row[col] ?? "").toLowerCase().includes(searchTerm.toLowerCase())
+                                      )
+                                    )
+                                  : grid.rows;
+
+                                const handleDownload = () => {
+                                  const header = grid.columns.map((c) => formatColumnName(c)).join(",");
+                                  const csvRows = filteredRows.map((row) =>
+                                    grid.columns.map((c) => {
+                                      const val = String(row[c] ?? "");
+                                      return val.includes(",") ? `"${val}"` : val;
+                                    }).join(",")
+                                  );
+                                  const csv = [header, ...csvRows].join("\n");
+                                  const blob = new Blob([csv], { type: "text/csv" });
+                                  const url = URL.createObjectURL(blob);
+                                  const a = document.createElement("a");
+                                  a.href = url;
+                                  a.download = `${grid.datasetName || "grid"}_export.csv`;
+                                  a.click();
+                                  URL.revokeObjectURL(url);
+                                };
+
+                                return (
+                                  <Card className="border-blue-500/10 bg-black/40 backdrop-blur-md shadow-xl hover:border-blue-500/20 transition-all group relative overflow-hidden">
+                                    {/* Title bar */}
+                                    {!grid.hideTitle && (
+                                      <CardHeader className="border-b border-white/[0.03] pb-3 flex flex-row items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2">
+                                          <LayoutGrid className="w-4 h-4 text-blue-400" />
+                                          <CardTitle className="text-base text-white/90 font-medium">
+                                            {grid.datasetName || "Data Grid"}
+                                          </CardTitle>
+                                          <span className="text-xs text-white/30">{filteredRows.length} rows</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          <GripVertical className="w-4 h-4 text-white/20" />
+                                          <button
+                                            onClick={() => handleRemoveBlock(block.id)}
+                                            className="opacity-0 group-hover:opacity-100 transition-opacity text-white/20 hover:text-red-400 p-1"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      </CardHeader>
+                                    )}
+                                    <CardContent className={`${grid.hideTitle ? 'pt-4' : 'pt-3'} pb-3 px-4 space-y-3`}>
+                                      {/* Search + Download bar */}
+                                      {(grid.showSearchAndSorting || grid.showDownloadButton) && (
+                                        <div className="flex items-center gap-2" onPointerDown={(e) => e.stopPropagation()}>
+                                          {grid.showSearchAndSorting && (
+                                            <div className="relative flex-1">
+                                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
+                                              <input
+                                                type="text"
+                                                value={searchTerm}
+                                                onChange={(e) => setSearchTerm(e.target.value)}
+                                                placeholder="Search..."
+                                                className="w-full pl-9 pr-3 py-2 text-sm bg-white/5 border border-white/10 rounded-lg text-white/80 placeholder:text-white/25 focus:outline-none focus:ring-1 focus:ring-blue-500/40 focus:border-blue-500/30"
+                                              />
+                                            </div>
+                                          )}
+                                          {grid.showDownloadButton && (
+                                            <button
+                                              onClick={handleDownload}
+                                              className="p-2 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white/80 transition-colors"
+                                              title="Download CSV"
+                                            >
+                                              <Download className="w-4 h-4" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
+                                      {/* Data Table */}
+                                      <div className="overflow-auto max-h-[350px] rounded-lg border border-white/[0.06]" onPointerDown={(e) => e.stopPropagation()}>
+                                        <table className="w-full text-sm">
+                                          <thead className="sticky top-0 z-10">
+                                            <tr className="bg-white/[0.04]">
+                                              {grid.columns.map((col) => (
+                                                <th key={col} className="px-3 py-2 text-left text-xs font-semibold text-white/50 uppercase tracking-wider whitespace-nowrap border-b border-white/[0.06]">
+                                                  {formatColumnName(col)}
+                                                </th>
+                                              ))}
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {filteredRows.slice(0, 50).map((row, i) => (
+                                              <tr key={i} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
+                                                {grid.columns.map((col) => (
+                                                  <td key={col} className="px-3 py-2 text-white/70 whitespace-nowrap text-xs">
+                                                    {row[col] != null ? String(row[col]) : <span className="text-white/20">—</span>}
+                                                  </td>
+                                                ))}
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                        {filteredRows.length > 50 && (
+                                          <div className="text-center py-2 text-xs text-white/30 bg-white/[0.02]">
+                                            Showing 50 of {filteredRows.length} rows
+                                          </div>
+                                        )}
+                                      </div>
+                                      {grid.hideTitle && (
+                                        <div className="flex justify-end" onPointerDown={(e) => e.stopPropagation()}>
+                                          <button
+                                            onClick={() => handleRemoveBlock(block.id)}
+                                            className="opacity-0 group-hover:opacity-100 transition-opacity text-white/20 hover:text-red-400 p-1"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      )}
+                                    </CardContent>
+                                  </Card>
+                                );
+                              };
+                              return <GridBlockInner />;
+                            })() : null}
                           </SortableDashboardBlock>
                         ))}
                       </div>
@@ -1076,6 +1222,65 @@ export default function AnalysisDashboard() {
             fileName={file?.name || null}
             onAddKpi={handleAddKpi}
             isComputing={isComputingKpi}
+          />
+
+          {/* Grid Panel */}
+          <GridPanel
+            isOpen={isGridPanelOpen}
+            onClose={() => setIsGridPanelOpen(false)}
+            columns={schema}
+            datasetName={file?.name || ""}
+            onAddGrid={async (config) => {
+              if (!datasetId) return;
+              try {
+                const resp = await axios.get(`/dataset/${datasetId}/data`, {
+                  params: { limit: 100, offset: 0 },
+                });
+                let rows: Record<string, any>[] = resp.data.data;
+                // Filter to selected columns
+                const cols = config.selectedColumns;
+                rows = rows.map((row) => {
+                  const filtered: Record<string, any> = {};
+                  cols.forEach((c) => { filtered[c] = row[c]; });
+                  return filtered;
+                });
+                // Sort if specified
+                if (config.sortColumn) {
+                  const sc = config.sortColumn;
+                  const dir = config.sortDirection === "asc" ? 1 : -1;
+                  rows.sort((a, b) => {
+                    const va = a[sc], vb = b[sc];
+                    if (va == null && vb == null) return 0;
+                    if (va == null) return dir;
+                    if (vb == null) return -dir;
+                    if (typeof va === "number" && typeof vb === "number") return (va - vb) * dir;
+                    return String(va).localeCompare(String(vb)) * dir;
+                  });
+                }
+                const id = `grid-${Date.now()}`;
+                setDashboardBlocks((prev) => [
+                  ...prev,
+                  {
+                    type: "grid",
+                    id,
+                    data: {
+                      id,
+                      columns: cols,
+                      rows,
+                      sortColumn: config.sortColumn,
+                      sortDirection: config.sortDirection,
+                      showSearchAndSorting: config.showSearchAndSorting,
+                      showDownloadButton: config.showDownloadButton,
+                      hideTitle: config.hideTitle,
+                      datasetName: file?.name || "",
+                    },
+                  },
+                ]);
+                setIsGridPanelOpen(false);
+              } catch (err) {
+                console.error("Failed to fetch grid data:", err);
+              }
+            }}
           />
 
         </div>
