@@ -2,6 +2,7 @@ import time
 import app.core.redis as redis_module
 from fastapi import Request, HTTPException, status
 from typing import Callable
+from app.core.config import settings
 
 
 def get_client_ip(request: Request) -> str:
