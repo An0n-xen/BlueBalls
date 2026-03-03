@@ -5,8 +5,9 @@ import { useDropzone } from "react-dropzone";
 import axios from "axios";
 import {
   UploadCloud, FileText, Database, Sparkles, Loader2, BarChart2,
-  Play, Share2, LayoutGrid, Plus, ChevronRight, ChevronLeft, Info, LayoutDashboard, GripVertical
+  Play, Share2, LayoutGrid, Plus, ChevronRight, ChevronLeft, Info, LayoutDashboard, GripVertical, Target, Trash2
 } from "lucide-react";
+import { MetricKpiPanel } from "@/components/metric-kpi-panel";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ axios.defaults.baseURL = "http://localhost:8000/api/v1";
 type ColumnDef = {
   name: string;
   type: string;
+  column_type?: string;
   description?: string;
 };
 
@@ -52,6 +54,16 @@ type SuggestedChart = {
   query: string;
   sql_query: string;
   chart_spec: any;
+};
+
+type KpiCard = {
+  id: string;
+  kpi_column: string;
+  aggregation: string;
+  value: number | null;
+  date_column: string | null;
+  breakdown: { period: string; value: number }[] | null;
+  label: string;
 };
 
 function SortableChartCard({ chart, children }: { chart: SuggestedChart; children: React.ReactNode }) {
@@ -118,6 +130,18 @@ export default function AnalysisDashboard() {
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
   const [isFetchingPrompts, setIsFetchingPrompts] = useState(false);
 
+  // Metric & KPI Panel state
+  const [isMetricPanelOpen, setIsMetricPanelOpen] = useState(false);
+  const [kpiCards, setKpiCards] = useState<KpiCard[]>([]);
+  const [isComputingKpi, setIsComputingKpi] = useState(false);
+
+  // Listen for the custom event from AddBlockPanel
+  useEffect(() => {
+    const handler = () => setIsMetricPanelOpen(true);
+    window.addEventListener("open-metric-kpi", handler);
+    return () => window.removeEventListener("open-metric-kpi", handler);
+  }, []);
+
   // Drag and drop sensors for chart reordering
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -157,8 +181,39 @@ export default function AnalysisDashboard() {
       setPageIndex(0);
       setIsLoadingMore(false);
       setError(null);
+      setKpiCards([]);
     }
   }, []);
+
+  const handleAddKpi = async (kpi: KpiCard) => {
+    if (!datasetId) return;
+    setIsComputingKpi(true);
+    setError(null);
+    try {
+      const resp = await axios.post(`/dataset/${datasetId}/kpi`, {
+        dataset_id: datasetId,
+        kpi_column: kpi.kpi_column,
+        aggregation: kpi.aggregation,
+        date_column: kpi.date_column,
+      });
+      const computedKpi: KpiCard = {
+        ...kpi,
+        value: resp.data.value,
+        breakdown: resp.data.breakdown,
+      };
+      setKpiCards((prev) => [...prev, computedKpi]);
+      setIsMetricPanelOpen(false);
+    } catch (err) {
+      const e = err as any;
+      setError(e.response?.data?.detail || "Failed to compute KPI");
+    } finally {
+      setIsComputingKpi(false);
+    }
+  };
+
+  const handleRemoveKpi = (id: string) => {
+    setKpiCards((prev) => prev.filter((k) => k.id !== id));
+  };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -517,6 +572,56 @@ export default function AnalysisDashboard() {
 
               {/* DASHBOARD TAB */}
               <TabsContent value="dashboard" className="focus-visible:outline-none space-y-6">
+
+                {/* KPI Score Cards */}
+                {kpiCards.length > 0 && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {kpiCards.map((kpi) => (
+                      <Card key={kpi.id} className="border-blue-500/10 bg-black/40 backdrop-blur-md shadow-xl hover:border-blue-500/20 transition-all group relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.04] to-purple-500/[0.02] pointer-events-none" />
+                        <CardContent className="pt-5 pb-4 px-5 relative z-10">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1.5 rounded-lg bg-blue-500/10">
+                                <Target className="w-3.5 h-3.5 text-blue-400" />
+                              </div>
+                              <span className="text-xs font-medium text-white/40 uppercase tracking-wider">{kpi.aggregation}</span>
+                            </div>
+                            <button
+                              onClick={() => handleRemoveKpi(kpi.id)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-white/20 hover:text-red-400 p-1"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <div className="text-3xl font-bold text-white tracking-tight mb-1">
+                            {kpi.value != null ? Number(kpi.value).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'}
+                          </div>
+                          <p className="text-sm text-white/50 font-medium">{kpi.label}</p>
+                          {kpi.date_column && kpi.breakdown && kpi.breakdown.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-white/5">
+                              <span className="text-[10px] text-white/30 uppercase tracking-wider">Grouped by {formatColumnName(kpi.date_column)}</span>
+                              <div className="flex items-end gap-[2px] mt-2 h-8">
+                                {kpi.breakdown.slice(0, 20).map((b, i) => {
+                                  const max = Math.max(...kpi.breakdown!.map((x) => Number(x.value) || 0));
+                                  const pct = max > 0 ? (Number(b.value) / max) * 100 : 0;
+                                  return (
+                                    <div
+                                      key={i}
+                                      className="flex-1 bg-blue-500/30 rounded-sm min-w-[3px] transition-all hover:bg-blue-400/50"
+                                      style={{ height: `${Math.max(pct, 4)}%` }}
+                                      title={`${b.period}: ${b.value}`}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
                 
                 {/* Custom Query Builder Block */}
                 <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-white/10 rounded-xl p-6 shadow-2xl relative overflow-hidden backdrop-blur-sm">
@@ -855,6 +960,17 @@ export default function AnalysisDashboard() {
 
             </Tabs>
           )}
+
+          {/* Metric & KPI Panel */}
+          <MetricKpiPanel
+            open={isMetricPanelOpen}
+            onClose={() => setIsMetricPanelOpen(false)}
+            schema={schema}
+            datasetId={datasetId}
+            fileName={file?.name || null}
+            onAddKpi={handleAddKpi}
+            isComputing={isComputingKpi}
+          />
 
         </div>
       </div>

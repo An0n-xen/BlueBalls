@@ -2,7 +2,8 @@ from sqlalchemy import Column, Integer, String, DateTime, JSON
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 import datetime
-from app.core.db import Base 
+from app.core.db import Base
+
 
 class DatasetRegistry(Base):
     __tablename__ = "dataset_registry"
@@ -15,5 +16,8 @@ class DatasetRegistry(Base):
     row_count = Column(Integer, nullable=True)
     column_count = Column(Integer, nullable=True)
     column_descriptions = Column(JSON, default=dict)
+    column_types = Column(JSON, default=dict)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    updated_at = Column(
+        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow
+    )

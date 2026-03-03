@@ -12,10 +12,11 @@ from fastapi import (
     HTTPException,
     Depends,
 )
-from app.services.dataset_service import upload_dataset, get_db_schema
+from app.services.dataset_service import upload_dataset, get_db_schema, compute_kpi
 from app.core.db import get_async_db, engine
 from app.core.logging import get_logger
 from app.core.rate_limit import get_rate_limit
+from app.schemas.llm_schema import KpiComputeRequest
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/dataset")
@@ -87,3 +88,26 @@ async def get_dataset_data(
     except Exception as e:
         logger.error(f"Error fetching data: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/{dataset_id}/kpi",
+    dependencies=[Depends(get_rate_limit(limit=20, window_size_seconds=60))],
+)
+async def compute_dataset_kpi(
+    dataset_id: str,
+    request: KpiComputeRequest,
+    db: AsyncSession = Depends(get_async_db),
+):
+    logger.info(
+        "Computing KPI for dataset %s: %s(%s)",
+        dataset_id,
+        request.aggregation,
+        request.kpi_column,
+    )
+    return await compute_kpi(
+        dataset_id=dataset_id,
+        kpi_column=request.kpi_column,
+        aggregation=request.aggregation,
+        date_column=request.date_column,
+    )

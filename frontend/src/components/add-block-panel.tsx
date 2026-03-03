@@ -107,8 +107,11 @@ export function AddBlockPanel({ open, onClose }: { open: boolean, onClose: () =>
 
   if (!mounted) return null
 
-  const ItemButton = ({ icon: Icon, title }: { icon: any, title: string }) => (
-    <button className="flex items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-accent text-accent-foreground/70 hover:text-accent-foreground w-full text-left transition-colors">
+  const ItemButton = ({ icon: Icon, title, onClick }: { icon: any, title: string, onClick?: () => void }) => (
+    <button 
+      onClick={onClick}
+      className="flex items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-accent text-accent-foreground/70 hover:text-accent-foreground w-full text-left transition-colors"
+    >
       <Icon className="h-4 w-4" />
       <span className="font-medium text-[13px]">{title}</span>
     </button>
@@ -143,7 +146,12 @@ export function AddBlockPanel({ open, onClose }: { open: boolean, onClose: () =>
           <h4 className="text-xs font-semibold text-popover-foreground/80 mb-3 px-1 select-none">Present</h4>
           <div className="grid grid-cols-2 gap-x-2 gap-y-1">
             {presentItems.map((item) => (
-              <ItemButton key={item.title} icon={item.icon} title={item.title} />
+              <ItemButton 
+                key={item.title} 
+                icon={item.icon} 
+                title={item.title} 
+                onClick={item.title === "Metric & KPI" ? () => window.dispatchEvent(new CustomEvent("open-metric-kpi")) : undefined}
+              />
             ))}
           </div>
         </div>
