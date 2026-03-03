@@ -8,6 +8,7 @@ import {
   Play, Share2, LayoutGrid, Plus, ChevronRight, ChevronLeft, Info, LayoutDashboard, GripVertical, Target, Trash2
 } from "lucide-react";
 import { MetricKpiPanel } from "@/components/metric-kpi-panel";
+import { RichTextBlock } from "@/components/rich-text-block";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,11 @@ type SuggestedChart = {
   chart_spec: any;
 };
 
+type RichTextBlockData = {
+  id: string;
+  content: string;
+};
+
 type KpiCard = {
   id: string;
   kpi_column: string;
@@ -65,6 +71,35 @@ type KpiCard = {
   breakdown: { period: string; value: number }[] | null;
   label: string;
 };
+
+type DashboardBlock =
+  | { type: "kpi"; id: string; data: KpiCard }
+  | { type: "richtext"; id: string; data: RichTextBlockData };
+
+// Sortable wrapper for dashboard blocks
+function SortableDashboardBlock({ id, children }: { id: string; children: React.ReactNode }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 50 : ('auto' as const),
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className={`cursor-grab active:cursor-grabbing ${isDragging ? 'ring-2 ring-blue-500/30 shadow-2xl shadow-blue-900/20 rounded-xl' : ''}`}>
+      {children}
+    </div>
+  );
+}
 
 function SortableChartCard({ chart, children }: { chart: SuggestedChart; children: React.ReactNode }) {
   const {
@@ -132,14 +167,46 @@ export default function AnalysisDashboard() {
 
   // Metric & KPI Panel state
   const [isMetricPanelOpen, setIsMetricPanelOpen] = useState(false);
-  const [kpiCards, setKpiCards] = useState<KpiCard[]>([]);
   const [isComputingKpi, setIsComputingKpi] = useState(false);
 
-  // Listen for the custom event from AddBlockPanel
+  // Unified dashboard blocks (KPI cards + Rich Text blocks) — ordered
+  const [dashboardBlocks, setDashboardBlocks] = useState<DashboardBlock[]>([]);
+
+  const dashboardBlockIds = useMemo(
+    () => dashboardBlocks.map((b) => b.id),
+    [dashboardBlocks]
+  );
+
+  // Listen for custom events from AddBlockPanel
   useEffect(() => {
-    const handler = () => setIsMetricPanelOpen(true);
-    window.addEventListener("open-metric-kpi", handler);
-    return () => window.removeEventListener("open-metric-kpi", handler);
+    const handleMetricKpi = () => setIsMetricPanelOpen(true);
+    const handleRichText = () => {
+      const id = `rt-${Date.now()}`;
+      setDashboardBlocks((prev) => [
+        ...prev,
+        { type: "richtext", id, data: { id, content: "" } },
+      ]);
+    };
+    window.addEventListener("open-metric-kpi", handleMetricKpi);
+    window.addEventListener("add-rich-text-block", handleRichText);
+    return () => {
+      window.removeEventListener("open-metric-kpi", handleMetricKpi);
+      window.removeEventListener("add-rich-text-block", handleRichText);
+    };
+  }, []);
+
+  const handleDashboardDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setDashboardBlocks((prev) => {
+        const oldIndex = prev.findIndex((b) => b.id === active.id);
+        const newIndex = prev.findIndex((b) => b.id === over.id);
+        if (oldIndex !== -1 && newIndex !== -1) {
+          return arrayMove(prev, oldIndex, newIndex);
+        }
+        return prev;
+      });
+    }
   }, []);
 
   // Drag and drop sensors for chart reordering
@@ -181,9 +248,23 @@ export default function AnalysisDashboard() {
       setPageIndex(0);
       setIsLoadingMore(false);
       setError(null);
-      setKpiCards([]);
+      setDashboardBlocks([]);
     }
   }, []);
+
+  const handleRichTextChange = (id: string, html: string) => {
+    setDashboardBlocks((prev) =>
+      prev.map((b) =>
+        b.type === "richtext" && b.id === id
+          ? { ...b, data: { ...b.data, content: html } }
+          : b
+      )
+    );
+  };
+
+  const handleRemoveBlock = (id: string) => {
+    setDashboardBlocks((prev) => prev.filter((b) => b.id !== id));
+  };
 
   const handleAddKpi = async (kpi: KpiCard) => {
     if (!datasetId) return;
@@ -201,7 +282,10 @@ export default function AnalysisDashboard() {
         value: resp.data.value,
         breakdown: resp.data.breakdown,
       };
-      setKpiCards((prev) => [...prev, computedKpi]);
+      setDashboardBlocks((prev) => [
+        ...prev,
+        { type: "kpi", id: computedKpi.id, data: computedKpi },
+      ]);
       setIsMetricPanelOpen(false);
     } catch (err) {
       const e = err as any;
@@ -211,9 +295,6 @@ export default function AnalysisDashboard() {
     }
   };
 
-  const handleRemoveKpi = (id: string) => {
-    setKpiCards((prev) => prev.filter((k) => k.id !== id));
-  };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -573,54 +654,79 @@ export default function AnalysisDashboard() {
               {/* DASHBOARD TAB */}
               <TabsContent value="dashboard" className="focus-visible:outline-none space-y-6">
 
-                {/* KPI Score Cards */}
-                {kpiCards.length > 0 && (
-                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {kpiCards.map((kpi) => (
-                      <Card key={kpi.id} className="border-blue-500/10 bg-black/40 backdrop-blur-md shadow-xl hover:border-blue-500/20 transition-all group relative overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.04] to-purple-500/[0.02] pointer-events-none" />
-                        <CardContent className="pt-5 pb-4 px-5 relative z-10">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                              <div className="p-1.5 rounded-lg bg-blue-500/10">
-                                <Target className="w-3.5 h-3.5 text-blue-400" />
-                              </div>
-                              <span className="text-xs font-medium text-white/40 uppercase tracking-wider">{kpi.aggregation}</span>
-                            </div>
-                            <button
-                              onClick={() => handleRemoveKpi(kpi.id)}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity text-white/20 hover:text-red-400 p-1"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                          <div className="text-3xl font-bold text-white tracking-tight mb-1">
-                            {kpi.value != null ? Number(kpi.value).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'}
-                          </div>
-                          <p className="text-sm text-white/50 font-medium">{kpi.label}</p>
-                          {kpi.date_column && kpi.breakdown && kpi.breakdown.length > 0 && (
-                            <div className="mt-3 pt-3 border-t border-white/5">
-                              <span className="text-[10px] text-white/30 uppercase tracking-wider">Grouped by {formatColumnName(kpi.date_column)}</span>
-                              <div className="flex items-end gap-[2px] mt-2 h-8">
-                                {kpi.breakdown.slice(0, 20).map((b, i) => {
-                                  const max = Math.max(...kpi.breakdown!.map((x) => Number(x.value) || 0));
-                                  const pct = max > 0 ? (Number(b.value) / max) * 100 : 0;
-                                  return (
-                                    <div
-                                      key={i}
-                                      className="flex-1 bg-blue-500/30 rounded-sm min-w-[3px] transition-all hover:bg-blue-400/50"
-                                      style={{ height: `${Math.max(pct, 4)}%` }}
-                                      title={`${b.period}: ${b.value}`}
-                                    />
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
+                {/* Sortable Dashboard Blocks (KPI + Rich Text) */}
+                {dashboardBlocks.length > 0 && (
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDashboardDragEnd}
+                  >
+                    <SortableContext items={dashboardBlockIds} strategy={rectSortingStrategy}>
+                      <div className="space-y-4">
+                        {dashboardBlocks.map((block) => (
+                          <SortableDashboardBlock key={block.id} id={block.id}>
+                            {block.type === "kpi" ? (() => {
+                              const kpi = block.data;
+                              return (
+                                <Card className="border-blue-500/10 bg-black/40 backdrop-blur-md shadow-xl hover:border-blue-500/20 transition-all group relative overflow-hidden">
+                                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.04] to-purple-500/[0.02] pointer-events-none" />
+                                  <CardContent className="pt-5 pb-4 px-5 relative z-10">
+                                    <div className="flex items-center justify-between mb-3">
+                                      <div className="flex items-center gap-2">
+                                        <div className="p-1.5 rounded-lg bg-blue-500/10">
+                                          <Target className="w-3.5 h-3.5 text-blue-400" />
+                                        </div>
+                                        <span className="text-xs font-medium text-white/40 uppercase tracking-wider">{kpi.aggregation}</span>
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        <GripVertical className="w-4 h-4 text-white/20" />
+                                        <button
+                                          onClick={() => handleRemoveBlock(kpi.id)}
+                                          className="opacity-0 group-hover:opacity-100 transition-opacity text-white/20 hover:text-red-400 p-1"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <div className="text-3xl font-bold text-white tracking-tight mb-1">
+                                      {kpi.value != null ? Number(kpi.value).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'}
+                                    </div>
+                                    <p className="text-sm text-white/50 font-medium">{kpi.label}</p>
+                                    {kpi.date_column && kpi.breakdown && kpi.breakdown.length > 0 && (
+                                      <div className="mt-3 pt-3 border-t border-white/5">
+                                        <span className="text-[10px] text-white/30 uppercase tracking-wider">Grouped by {formatColumnName(kpi.date_column)}</span>
+                                        <div className="flex items-end gap-[2px] mt-2 h-8">
+                                          {kpi.breakdown.slice(0, 20).map((b, i) => {
+                                            const max = Math.max(...kpi.breakdown!.map((x) => Number(x.value) || 0));
+                                            const pct = max > 0 ? (Number(b.value) / max) * 100 : 0;
+                                            return (
+                                              <div
+                                                key={i}
+                                                className="flex-1 bg-blue-500/30 rounded-sm min-w-[3px] transition-all hover:bg-blue-400/50"
+                                                style={{ height: `${Math.max(pct, 4)}%` }}
+                                                title={`${b.period}: ${b.value}`}
+                                              />
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </CardContent>
+                                </Card>
+                              );
+                            })() : block.type === "richtext" ? (
+                              <RichTextBlock
+                                id={block.id}
+                                initialContent={block.data.content}
+                                onContentChange={handleRichTextChange}
+                                onRemove={handleRemoveBlock}
+                              />
+                            ) : null}
+                          </SortableDashboardBlock>
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
                 )}
                 
                 {/* Custom Query Builder Block */}

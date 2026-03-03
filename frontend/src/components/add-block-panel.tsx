@@ -145,14 +145,21 @@ export function AddBlockPanel({ open, onClose }: { open: boolean, onClose: () =>
         <div>
           <h4 className="text-xs font-semibold text-popover-foreground/80 mb-3 px-1 select-none">Present</h4>
           <div className="grid grid-cols-2 gap-x-2 gap-y-1">
-            {presentItems.map((item) => (
-              <ItemButton 
-                key={item.title} 
-                icon={item.icon} 
-                title={item.title} 
-                onClick={item.title === "Metric & KPI" ? () => window.dispatchEvent(new CustomEvent("open-metric-kpi")) : undefined}
-              />
-            ))}
+            {presentItems.map((item) => {
+              const eventMap: Record<string, string> = {
+                "Metric & KPI": "open-metric-kpi",
+                "Rich Text": "add-rich-text-block",
+              }
+              const eventName = eventMap[item.title]
+              return (
+                <ItemButton 
+                  key={item.title} 
+                  icon={item.icon} 
+                  title={item.title} 
+                  onClick={eventName ? () => window.dispatchEvent(new CustomEvent(eventName)) : undefined}
+                />
+              )
+            })}
           </div>
         </div>
 
