@@ -421,7 +421,6 @@ export default function AnalysisDashboard() {
       {/* Top Navigation Bar */}
       <header className="h-14 border-b border-border/10 flex items-center justify-between px-4 bg-zinc-950/50 backdrop-blur-md shrink-0 z-10 sticky top-0">
         <div className="flex items-center gap-4">
-          <SidebarTrigger className="text-muted-foreground hover:text-white transition-colors" />
           <div className="h-4 w-[1px] bg-border/20" />
           <h1 className="font-semibold text-sm drop-shadow-sm flex items-center gap-2">
             {file ? file.name.replace(".csv", "").replace(".xlsx", "") : "Untitled Analysis"}
@@ -430,7 +429,7 @@ export default function AnalysisDashboard() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="h-8 text-xs border-white/10 bg-transparent hover:bg-white/5">
-            <Play className="w-3.5 h-3.5 mr-1.5" /> Present
+            <Play className="w-3.5 h-3.5 mr-1.5" /> Save
           </Button>
           <Button size="sm" className="h-8 text-xs bg-white text-black hover:bg-zinc-200">
             <Share2 className="w-3.5 h-3.5 mr-1.5" /> Share Board

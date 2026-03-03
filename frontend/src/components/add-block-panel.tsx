@@ -105,7 +105,7 @@ export function AddBlockPanel({ open, onClose }: { open: boolean, onClose: () =>
     }
   }
 
-  if (!mounted || !open) return null
+  if (!mounted) return null
 
   const ItemButton = ({ icon: Icon, title }: { icon: any, title: string }) => (
     <button className="flex items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-accent text-accent-foreground/70 hover:text-accent-foreground w-full text-left transition-colors">
@@ -116,7 +116,7 @@ export function AddBlockPanel({ open, onClose }: { open: boolean, onClose: () =>
 
   return (
     <div 
-      className="fixed z-50 flex flex-col w-[340px] rounded-xl bg-popover text-popover-foreground shadow-xl border border-border/50"
+      className={`fixed z-50 flex flex-col w-[340px] rounded-xl bg-popover text-popover-foreground shadow-xl border border-border/50 transition-[opacity,transform] duration-200 ease-in-out origin-left ${open ? "opacity-100 scale-100 translate-x-0 pointer-events-auto" : "opacity-0 scale-95 -translate-x-4 pointer-events-none"}`}
       style={{ left: position.x, top: position.y }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

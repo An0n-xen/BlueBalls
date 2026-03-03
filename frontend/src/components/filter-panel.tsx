@@ -59,11 +59,11 @@ export function FilterPanel({ open, onClose }: { open: boolean, onClose: () => v
     }
   }
 
-  if (!mounted || !open) return null
+  if (!mounted) return null
 
   return (
     <div 
-      className="fixed z-50 flex flex-col w-[800px] h-[600px] rounded-xl bg-popover text-popover-foreground shadow-2xl border border-border/50 overflow-hidden"
+      className={`fixed z-50 flex flex-col w-[800px] h-[600px] rounded-xl bg-popover text-popover-foreground shadow-2xl border border-border/50 overflow-hidden transition-[opacity,transform] duration-200 ease-in-out origin-left ${open ? "opacity-100 scale-100 translate-x-0 pointer-events-auto" : "opacity-0 scale-95 -translate-x-4 pointer-events-none"}`}
       style={{ left: position.x, top: position.y }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
