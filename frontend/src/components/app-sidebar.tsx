@@ -37,6 +37,16 @@ const items = [
 
 export function AppSidebar() {
   const [activePanel, setActivePanel] = React.useState<string | null>(null);
+  const [hasActiveFilters, setHasActiveFilters] = React.useState(false);
+
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setHasActiveFilters(detail?.hasFilters || false);
+    };
+    window.addEventListener("filter-status-changed", handler);
+    return () => window.removeEventListener("filter-status-changed", handler);
+  }, []);
 
   return (
     <>
@@ -65,10 +75,13 @@ export function AppSidebar() {
                       setActivePanel(isOpen ? null : item.title);
                     }
                   }}
-                  className={`flex flex-col items-center justify-center gap-1.5 px-3 py-2 text-center transition-colors rounded-md hover:bg-sidebar-accent ${isOpen ? 'text-primary bg-sidebar-accent' : 'text-sidebar-foreground/70 hover:text-primary'}`}
+                  className={`relative flex flex-col items-center justify-center gap-1.5 px-3 py-2 text-center transition-colors rounded-md hover:bg-sidebar-accent ${isOpen ? 'text-primary bg-sidebar-accent' : 'text-sidebar-foreground/70 hover:text-primary'}`}
                 >
                   <item.icon className="h-4 w-4" />
                   <span className="text-[11px] leading-none">{item.title}</span>
+                  {item.title === "Filter" && hasActiveFilters && (
+                    <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-blue-500" />
+                  )}
                 </a>
               )
             })}

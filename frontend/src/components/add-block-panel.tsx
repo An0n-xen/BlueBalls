@@ -33,8 +33,6 @@ const presentItems = [
   { title: "Metric & KPI", icon: Target },
   { title: "Grid", icon: LayoutGrid },
   { title: "Image", icon: ImageIcon },
-  { title: "Gallery", icon: LayoutTemplate },
-  { title: "Loom", icon: Aperture },
 ]
 
 const visualizeItems = [
@@ -110,7 +108,7 @@ export function AddBlockPanel({ open, onClose }: { open: boolean, onClose: () =>
   const ItemButton = ({ icon: Icon, title, onClick }: { icon: any, title: string, onClick?: () => void }) => (
     <button 
       onClick={onClick}
-      className="flex items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-accent text-accent-foreground/70 hover:text-accent-foreground w-full text-left transition-colors"
+      className="flex items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-white/[0.06] text-gray-400 hover:text-gray-200 w-full text-left transition-colors"
     >
       <Icon className="h-4 w-4" />
       <span className="font-medium text-[13px]">{title}</span>
@@ -119,37 +117,39 @@ export function AddBlockPanel({ open, onClose }: { open: boolean, onClose: () =>
 
   return (
     <div 
-      className={`fixed z-50 flex flex-col w-[340px] rounded-xl bg-popover text-popover-foreground shadow-xl border border-border/50 transition-all duration-300 ease-out ${open ? "opacity-100 scale-100 translate-x-0 pointer-events-auto blur-0" : "opacity-0 scale-95 -translate-x-6 pointer-events-none blur-sm"}`}
+      className={`fixed z-50 flex flex-col w-[340px] rounded-xl bg-[#0f0f0f] text-gray-200 shadow-2xl border border-white/10 transition-all duration-300 ease-out ${open ? "opacity-100 scale-100 translate-x-0 pointer-events-auto blur-0" : "opacity-0 scale-95 -translate-x-6 pointer-events-none blur-sm"}`}
       style={{ left: position.x, top: position.y, transitionProperty: "opacity, transform, blur, box-shadow" }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
-      <div className="drag-handle flex items-center justify-between px-4 py-3 border-b border-border/50 cursor-grab active:cursor-grabbing">
-        <div className="flex items-center gap-2 text-sm font-semibold text-popover-foreground select-none pointer-events-none">
-          <Grip className="h-4 w-4 text-muted-foreground" />
+      <div className="drag-handle flex items-center justify-between px-4 py-3 border-b border-white/5 cursor-grab active:cursor-grabbing bg-gradient-to-r from-blue-950/30 to-purple-950/20">
+        <div className="flex items-center gap-2 text-sm font-semibold text-gray-200 select-none pointer-events-none">
+          <Grip className="h-4 w-4 text-gray-500" />
           Add Block
         </div>
         <button 
           onPointerDown={(e) => e.stopPropagation()} 
           onClick={onClose} 
-          className="text-muted-foreground hover:text-popover-foreground transition-colors z-10 p-1"
+          className="text-gray-500 hover:text-gray-300 transition-colors z-10 p-1.5 hover:bg-white/5 rounded-md"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
       
-      <div className="p-4 max-h-[70vh] overflow-y-auto overflow-x-hidden space-y-6">
+      <div className="p-4 max-h-[70vh] overflow-y-auto overflow-x-hidden space-y-6 bg-[#111111]">
         {/* Present Section */}
         <div>
-          <h4 className="text-xs font-semibold text-popover-foreground/80 mb-3 px-1 select-none">Present</h4>
+          <h4 className="text-[11px] font-semibold text-gray-500 mb-3 px-1 select-none uppercase tracking-wider">Present</h4>
           <div className="grid grid-cols-2 gap-x-2 gap-y-1">
             {presentItems.map((item) => {
               const eventMap: Record<string, string> = {
                 "Metric & KPI": "open-metric-kpi",
                 "Rich Text": "add-rich-text-block",
                 "Grid": "open-grid-panel",
+                "Image": "open-image-panel",
+                "Header": "open-header-panel",
               }
               const eventName = eventMap[item.title]
               return (
@@ -166,7 +166,7 @@ export function AddBlockPanel({ open, onClose }: { open: boolean, onClose: () =>
 
         {/* Visualize Section */}
         <div>
-          <h4 className="text-xs font-semibold text-popover-foreground/80 mb-3 px-1 select-none">Visualize</h4>
+          <h4 className="text-[11px] font-semibold text-gray-500 mb-3 px-1 select-none uppercase tracking-wider">Visualize</h4>
           <div className="grid grid-cols-2 gap-x-2 gap-y-1">
             {visualizeItems.map((item) => (
               <ItemButton key={item.title} icon={item.icon} title={item.title} />
@@ -176,7 +176,7 @@ export function AddBlockPanel({ open, onClose }: { open: boolean, onClose: () =>
 
         {/* Explain Section */}
         <div>
-          <h4 className="text-xs font-semibold text-popover-foreground/80 mb-3 px-1 select-none">Explain</h4>
+          <h4 className="text-[11px] font-semibold text-gray-500 mb-3 px-1 select-none uppercase tracking-wider">Explain</h4>
           <div className="grid grid-cols-2 gap-x-2 gap-y-1">
             {explainItems.map((item) => (
               <ItemButton key={item.title} icon={item.icon} title={item.title} />

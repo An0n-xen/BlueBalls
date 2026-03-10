@@ -111,3 +111,66 @@ async def compute_dataset_kpi(
         aggregation=request.aggregation,
         date_column=request.date_column,
     )
+
+
+@router.get(
+    "/{dataset_id}/distinct-values",
+    dependencies=[Depends(get_rate_limit(limit=10, window_size_seconds=60))],
+)
+async def get_distinct_values(
+    dataset_id: str,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Get distinct values and counts for each column in the dataset."""
+    logger.info(f"Getting distinct values for dataset {dataset_id}")
+    try:
+        schema = await get_db_schema(dataset_id)
+        if not schema:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+
+        columns = schema.get("columns", [])
+        result_columns = []
+        async with engine.connect() as conn:
+            for col in columns:
+                col_name = col["name"]
+                col_type = col.get("type", "unknown")
+                try:
+                    query = text(
+                        f'SELECT "{col_name}" AS val, COUNT(*) AS cnt '
+                        f'FROM "{dataset_id}" '
+                        f'WHERE "{col_name}" IS NOT NULL '
+                        f'GROUP BY "{col_name}" '
+                        f"ORDER BY cnt DESC "
+                        f"LIMIT 100"
+                    )
+                    rows = await conn.execute(query)
+                    values = [
+                        {"value": str(r.val), "count": r.cnt} for r in rows.fetchall()
+                    ]
+                    result_columns.append(
+                        {
+                            "name": col_name,
+                            "type": col_type,
+                            "distinct_count": len(values),
+                            "values": values,
+                        }
+                    )
+                except Exception as col_err:
+                    logger.warning(
+                        f"Error getting distinct values for {col_name}: {col_err}"
+                    )
+                    result_columns.append(
+                        {
+                            "name": col_name,
+                            "type": col_type,
+                            "distinct_count": 0,
+                            "values": [],
+                        }
+                    )
+
+        return {"dataset_id": dataset_id, "columns": result_columns}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching distinct values: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

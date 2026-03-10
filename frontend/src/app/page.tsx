@@ -5,23 +5,20 @@ import { useDropzone } from "react-dropzone";
 import axios from "axios";
 import {
   UploadCloud, FileText, Database, Sparkles, Loader2, BarChart2,
-  Play, Share2, LayoutGrid, Plus, ChevronRight, ChevronLeft, Info, LayoutDashboard, GripVertical, Target, Trash2,
-  Search, Download, ArrowUpDown, ArrowUp, ArrowDown
+  Play, Share2, LayoutGrid, ChevronRight, LayoutDashboard, GripVertical, Target, Trash2,
+  Search, Download
 } from "lucide-react";
 import { MetricKpiPanel } from "@/components/metric-kpi-panel";
 import { RichTextBlock } from "@/components/rich-text-block";
 import { GridPanel } from "@/components/grid-panel";
+import { ImagePanel } from "@/components/image-panel";
+import { HeaderPanel } from "@/components/header-panel";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Input } from "@/components/ui/input";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 import {
   DndContext,
@@ -38,6 +35,7 @@ import {
   sortableKeyboardCoordinates,
   useSortable,
   rectSortingStrategy,
+  verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -77,7 +75,24 @@ type KpiCard = {
 type DashboardBlock =
   | { type: "kpi"; id: string; data: KpiCard }
   | { type: "richtext"; id: string; data: RichTextBlockData }
-  | { type: "grid"; id: string; data: GridBlockData };
+  | { type: "grid"; id: string; data: GridBlockData }
+  | { type: "image"; id: string; data: ImageBlockData }
+  | { type: "header"; id: string; data: HeaderBlockData };
+
+type ImageBlockData = {
+  id: string;
+  imageUrl: string;
+  appearance: "fit" | "fill";
+};
+
+type HeaderBlockData = {
+  id: string;
+  title: string;
+  description: string;
+  textSize: "small" | "medium" | "large";
+  textAlignment: "left" | "center" | "right";
+  backgroundColor: string;
+};
 
 type GridBlockData = {
   id: string;
@@ -158,9 +173,7 @@ export default function AnalysisDashboard() {
   const [datasetRowCount, setDatasetRowCount] = useState<number | null>(null);
   const [datasetColumnCount, setDatasetColumnCount] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<SuggestedChart[] | null>(null);
-  const [userQuery, setUserQuery] = useState("");
-  const [generatedChart, setGeneratedChart] = useState<any>(null);
-  const [generatedSql, setGeneratedSql] = useState<string | null>(null);
+
   
   // Data Tab State
   const [rawData, setRawData] = useState<any[]>([]);
@@ -173,12 +186,7 @@ export default function AnalysisDashboard() {
   const [isUploading, setIsUploading] = useState(false);
   const [isFetchingSchema, setIsFetchingSchema] = useState(false);
   const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false);
-  const [isGeneratingChart, setIsGeneratingChart] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // AI suggested query prompts (for "Suggested for you" section)
-  const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
-  const [isFetchingPrompts, setIsFetchingPrompts] = useState(false);
 
   // Metric & KPI Panel state
   const [isMetricPanelOpen, setIsMetricPanelOpen] = useState(false);
@@ -186,6 +194,15 @@ export default function AnalysisDashboard() {
 
   // Grid Panel state
   const [isGridPanelOpen, setIsGridPanelOpen] = useState(false);
+
+  // Image Panel state
+  const [isImagePanelOpen, setIsImagePanelOpen] = useState(false);
+
+  // Header Panel state
+  const [isHeaderPanelOpen, setIsHeaderPanelOpen] = useState(false);
+
+  // Global Filters state
+  const [globalFilters, setGlobalFilters] = useState<Record<string, string[]>>({});
 
   // Unified dashboard blocks (KPI cards + Rich Text blocks) — ordered
   const [dashboardBlocks, setDashboardBlocks] = useState<DashboardBlock[]>([]);
@@ -206,15 +223,98 @@ export default function AnalysisDashboard() {
       ]);
     };
     const handleGridPanel = () => setIsGridPanelOpen(true);
+    const handleImagePanel = () => setIsImagePanelOpen(true);
+    const handleHeaderPanel = () => setIsHeaderPanelOpen(true);
     window.addEventListener("open-metric-kpi", handleMetricKpi);
     window.addEventListener("add-rich-text-block", handleRichText);
     window.addEventListener("open-grid-panel", handleGridPanel);
+    window.addEventListener("open-image-panel", handleImagePanel);
+    window.addEventListener("open-header-panel", handleHeaderPanel);
     return () => {
       window.removeEventListener("open-metric-kpi", handleMetricKpi);
       window.removeEventListener("add-rich-text-block", handleRichText);
       window.removeEventListener("open-grid-panel", handleGridPanel);
+      window.removeEventListener("open-image-panel", handleImagePanel);
+      window.removeEventListener("open-header-panel", handleHeaderPanel);
     };
   }, []);
+
+  // Listen for filter changes from FilterPanel
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setGlobalFilters(detail?.filters || {});
+    };
+    window.addEventListener("global-filters-changed", handler);
+    return () => window.removeEventListener("global-filters-changed", handler);
+  }, []);
+
+  // Listen for charts generated from AI Chat
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.chart_spec) {
+        const newChart: SuggestedChart = {
+          id: `ai-chat-${Date.now()}`,
+          query: detail.query || "AI Generated Chart",
+          sql_query: detail.sql_query || "",
+          chart_spec: detail.chart_spec,
+        };
+        setSuggestions((prev) => (prev ? [newChart, ...prev] : [newChart]));
+      }
+    };
+    window.addEventListener("ai-chart-generated", handler);
+    return () => window.removeEventListener("ai-chart-generated", handler);
+  }, []);
+
+  // Build filter context string for chart generation
+  const buildFilterContext = useCallback(() => {
+    const entries = Object.entries(globalFilters);
+    if (entries.length === 0) return "";
+    const clauses = entries.map(
+      ([col, values]) => `"${col}" IN (${values.map((v) => `'${v}'`).join(", ")})`
+    );
+    return ` [IMPORTANT: Apply these filters: WHERE ${clauses.join(" AND ")}]`;
+  }, [globalFilters]);
+
+  // Re-generate existing charts when filters change
+  const prevFiltersRef = React.useRef<Record<string, string[]>>({});
+  useEffect(() => {
+    // Skip initial mount
+    const prevStr = JSON.stringify(prevFiltersRef.current);
+    const currStr = JSON.stringify(globalFilters);
+    if (prevStr === currStr) return;
+    prevFiltersRef.current = globalFilters;
+
+    if (!datasetId) return;
+
+    const filterCtx = buildFilterContext();
+
+    // Re-generate suggested charts
+    if (suggestions && suggestions.length > 0) {
+      const regenerate = async () => {
+        const updated = await Promise.all(
+          suggestions.map(async (chart) => {
+            try {
+              const resp = await axios.post("/charts/generate", {
+                dataset_id: datasetId,
+                user_query: chart.query + filterCtx,
+              });
+              const spec =
+                resp.data.chart_spec?.chart_spec || resp.data.chart_spec;
+              return { ...chart, chart_spec: spec || chart.chart_spec, sql_query: resp.data.sql_query || chart.sql_query };
+            } catch {
+              return chart; // keep original on error
+            }
+          })
+        );
+        setSuggestions(updated);
+      };
+      regenerate();
+    }
+
+
+  }, [globalFilters, datasetId, buildFilterContext]);
 
   const handleDashboardDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
@@ -261,9 +361,6 @@ export default function AnalysisDashboard() {
       setDatasetRowCount(null);
       setDatasetColumnCount(null);
       setSuggestions(null);
-      setGeneratedChart(null);
-      setGeneratedSql(null);
-      setUserQuery("");
       setRawData([]);
       setTotalRows(0);
       setPageIndex(0);
@@ -343,6 +440,12 @@ export default function AnalysisDashboard() {
       setDatasetId(returnedId);
       await fetchSchema(returnedId);
       await fetchRawData(returnedId, 0);
+      // Broadcast dataset info so FilterPanel knows the active dataset
+      window.dispatchEvent(
+        new CustomEvent("dataset-info", {
+          detail: { datasetId: returnedId, datasetName: file?.name || "" },
+        })
+      );
     } catch (err) {
       const e = err as any;
       setError(e.response?.data?.detail || e.message || "Failed to upload file");
@@ -407,73 +510,7 @@ export default function AnalysisDashboard() {
     }
   };
 
-  const handleFetchSuggestedPrompts = async () => {
-    if (!datasetId) return;
-    setIsFetchingPrompts(true);
-    setError(null);
-    try {
-      const resp = await axios.get(`/charts/suggest-queries?dataset_id=${datasetId}`);
-      setSuggestedPrompts(resp.data.suggestions || []);
-    } catch (err) {
-      const e = err as any;
-      setError(e.response?.data?.detail || "Failed to get suggestions");
-    } finally {
-      setIsFetchingPrompts(false);
-    }
-  };
 
-  const handlePromptClick = async (prompt: string) => {
-    if (!datasetId) return;
-    setUserQuery(prompt);
-    setIsGeneratingChart(true);
-    setError(null);
-    setGeneratedChart(null);
-    setGeneratedSql(null);
-
-    try {
-      const resp = await axios.post("/charts/generate", {
-        dataset_id: datasetId,
-        user_query: prompt,
-      });
-      setGeneratedChart(resp.data.chart_spec);
-      setGeneratedSql(resp.data.sql_query);
-    } catch (err) {
-      const e = err as any;
-      setError(e.response?.data?.detail || "Failed to generate chart");
-    } finally {
-      setIsGeneratingChart(false);
-    }
-  };
-
-  const handleGenerateChart = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!datasetId || !userQuery.trim()) return;
-    
-    setIsGeneratingChart(true);
-    setError(null);
-    setGeneratedChart(null);
-    setGeneratedSql(null);
-
-    try {
-      const resp = await axios.post("/charts/generate", {
-        dataset_id: datasetId,
-        user_query: userQuery
-      });
-      
-      setGeneratedSql(resp.data.sql_query);
-      const spec = resp.data.chart_spec?.chart_spec || resp.data.chart_spec;
-      if (spec) {
-        setGeneratedChart(spec);
-      } else {
-        setError("Generated query successfully, but failed to build charting options.");
-      }
-    } catch (err) {
-      const e = err as any;
-      setError(e.response?.data?.detail || "Failed to generate chart");
-    } finally {
-      setIsGeneratingChart(false);
-    }
-  };
 
   // Theme-matching color palette for charts (blues, teals, purples — no clashing greens/yellows)
   const chartColorPalette = [
@@ -682,7 +719,7 @@ export default function AnalysisDashboard() {
                     collisionDetection={closestCenter}
                     onDragEnd={handleDashboardDragEnd}
                   >
-                    <SortableContext items={dashboardBlockIds} strategy={rectSortingStrategy}>
+                    <SortableContext items={dashboardBlockIds} strategy={verticalListSortingStrategy}>
                       <div className="space-y-4">
                         {dashboardBlocks.map((block) => (
                           <SortableDashboardBlock key={block.id} id={block.id}>
@@ -867,6 +904,56 @@ export default function AnalysisDashboard() {
                                 );
                               };
                               return <GridBlockInner />;
+                            })() : block.type === "image" ? (() => {
+                              const img = block.data;
+                              return (
+                                <Card className="border-blue-500/10 bg-black/40 backdrop-blur-md shadow-xl hover:border-blue-500/20 transition-all group relative overflow-hidden">
+                                  <div className="relative">
+                                    <img
+                                      src={img.imageUrl}
+                                      alt="Dashboard image"
+                                      className={`w-full ${img.appearance === "fill" ? "h-48 object-cover" : "max-h-56 object-cover"}`}
+                                    />
+                                    <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <GripVertical className="w-4 h-4 text-white/40" />
+                                      <button
+                                        onClick={() => handleRemoveBlock(block.id)}
+                                        onPointerDown={(e) => e.stopPropagation()}
+                                        className="p-1 rounded bg-black/50 backdrop-blur-sm text-white/40 hover:text-red-400 transition-colors"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </Card>
+                              );
+                            })() : block.type === "header" ? (() => {
+                              const hdr = block.data;
+                              const sizeClass = hdr.textSize === "small" ? "text-xl" : hdr.textSize === "large" ? "text-4xl" : "text-2xl";
+                              const alignClass = hdr.textAlignment === "left" ? "text-left" : hdr.textAlignment === "right" ? "text-right" : "text-center";
+                              return (
+                                <div className={`bg-gradient-to-r ${hdr.backgroundColor} rounded-xl px-8 py-8 group relative overflow-hidden shadow-xl`}>
+                                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.05),transparent_50%)]" />
+                                  <div className={`relative z-10 ${alignClass}`}>
+                                    <h2 className={`${sizeClass} font-bold text-white tracking-tight`}>{hdr.title}</h2>
+                                    {hdr.description && (
+                                      <p className={`mt-2 text-white/60 ${hdr.textSize === "small" ? "text-sm" : "text-base"} max-w-2xl ${hdr.textAlignment === "center" ? "mx-auto" : ""}`}>
+                                        {hdr.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <GripVertical className="w-4 h-4 text-white/40" />
+                                    <button
+                                      onClick={() => handleRemoveBlock(block.id)}
+                                      onPointerDown={(e) => e.stopPropagation()}
+                                      className="p-1 rounded bg-black/30 backdrop-blur-sm text-white/40 hover:text-red-400 transition-colors"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
                             })() : null}
                           </SortableDashboardBlock>
                         ))}
@@ -875,80 +962,7 @@ export default function AnalysisDashboard() {
                   </DndContext>
                 )}
                 
-                {/* Custom Query Builder Block */}
-                <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-white/10 rounded-xl p-6 shadow-2xl relative overflow-hidden backdrop-blur-sm">
-                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(59,130,246,0.1),transparent_50%)]" />
-                   <div className="relative z-10 grid gap-4">
-                     <div className="flex items-center gap-2">
-                        <div className="p-2 bg-blue-500/20 rounded-lg">
-                          <BarChart2 className="w-5 h-5 text-blue-400" />
-                        </div>
-                        <div>
-                          <h2 className="text-lg font-bold text-white">Natural Language Builder</h2>
-                          <p className="text-sm text-blue-200/60">Ask a question to generate a completely custom chart.</p>
-                        </div>
-                     </div>
-                     <form onSubmit={handleGenerateChart} className="flex gap-3 mt-2">
-                        <Input 
-                          placeholder="e.g. 'Show me the top 5 reasons for admission by month'" 
-                          value={userQuery}
-                          onChange={(e) => setUserQuery(e.target.value)}
-                          className="bg-black/50 border-white/10 text-white placeholder:text-white/30 h-12 flex-1 shadow-inner focus-visible:ring-blue-500/50"
-                        />
-                        <Button 
-                          type="submit"
-                          disabled={isGeneratingChart || !userQuery.trim()}
-                          className="font-semibold h-12 px-6 transition-all bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20"
-                        >
-                          {isGeneratingChart ? (
-                            <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Generating...</>
-                          ) : (
-                            <><Plus className="mr-2 w-5 h-5" /> Build Chart</>
-                          )}
-                        </Button>
-                     </form>
-                   </div>
-                </div>
 
-                {/* AI Generated Custom Chart Result */}
-                {(generatedChart || generatedSql) && (
-                  <Card className="border-blue-500/30 bg-black/40 backdrop-blur-md shadow-xl animate-in fade-in zoom-in-95">
-                    <CardHeader className="border-b border-border/5 pb-4">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg text-blue-400 flex items-center gap-2">
-                           {userQuery}
-                        </CardTitle>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-6">
-                      {generatedChart && (
-                        <div className="w-full h-[500px] bg-transparent">
-                          <ReactECharts 
-                            option={getChartEnhancements(generatedChart)} 
-                            style={{ height: '100%', width: '100%' }} 
-                            theme="dark"
-                          />
-                        </div>
-                      )}
-                      {generatedSql && (
-                        <Accordion type="single" collapsible className="w-full mt-4">
-                          <AccordionItem value="sql" className="border-white/5">
-                            <AccordionTrigger className="text-xs font-medium text-muted-foreground hover:text-white py-2">
-                              Executed SQL Query
-                            </AccordionTrigger>
-                            <AccordionContent>
-                              <div className="bg-black/60 border border-white/5 rounded-md p-3 mt-1">
-                                <code className="text-blue-300/70 font-mono text-[11px] whitespace-pre-wrap">
-                                  {generatedSql}
-                                </code>
-                              </div>
-                            </AccordionContent>
-                          </AccordionItem>
-                        </Accordion>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
 
                 {/* Grid of Recommended Charts — Draggable */}
                 {suggestions && suggestions.length > 0 && (
@@ -982,70 +996,17 @@ export default function AnalysisDashboard() {
                 )}
                 
                 {/* Empty state for Dashboard when dataset is loaded but no charts exist */}
-                {!suggestions && !generatedChart && !isFetchingSuggestions && (
+                {!suggestions && !isFetchingSuggestions && (
                    <div className="h-[400px] rounded-xl border-2 border-dashed border-white/5 flex flex-col items-center justify-center text-center p-8 opacity-50">
                       <BarChart2 className="w-12 h-12 text-white/20 mb-4" />
                       <h3 className="text-lg font-semibold text-white/50">Dashboard Empty</h3>
                       <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-                        Use the Natural Language builder above or click "Auto-Generate Insights" to build your dashboard.
+                        Use the AI Chat in the sidebar or click &quot;Auto-Generate Insights&quot; to build your dashboard.
                       </p>
                    </div>
                 )}
 
-                {/* Suggested for You — Clickable Query Prompts */}
-                {datasetId && (
-                  <div className="pt-8 mt-4 border-t border-white/5">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-bold text-white/90 flex items-center gap-2">
-                        <Sparkles className="w-5 h-5 text-amber-400" />
-                        Suggested for you
-                      </h3>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleFetchSuggestedPrompts}
-                        disabled={isFetchingPrompts}
-                        className="text-xs text-white/40 hover:text-white/70"
-                      >
-                        {isFetchingPrompts ? <Loader2 className="w-3 h-3 animate-spin" /> : "Refresh"}
-                      </Button>
-                    </div>
-                    
-                    {suggestedPrompts.length > 0 ? (
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {suggestedPrompts.map((prompt, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => handlePromptClick(prompt)}
-                            disabled={isGeneratingChart}
-                            className="group p-4 rounded-xl border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/5 transition-all text-left"
-                          >
-                            <div className="flex items-start gap-3">
-                              <div className="p-2 rounded-lg bg-blue-500/10 group-hover:bg-blue-500/15 transition-colors shrink-0">
-                                <Sparkles className="w-4 h-4 text-blue-400" />
-                              </div>
-                              <span className="text-sm text-white/70 group-hover:text-white/90 transition-colors line-clamp-2 leading-relaxed">
-                                {prompt}
-                              </span>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-6">
-                        <Button
-                          onClick={handleFetchSuggestedPrompts}
-                          disabled={isFetchingPrompts}
-                          variant="outline"
-                          className="border-white/10 text-white/50 hover:text-white hover:bg-white/5"
-                        >
-                          {isFetchingPrompts ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2 text-amber-400" />}
-                          Get Suggestions
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )}
+
               </TabsContent>
 
               {/* DATA TAB */}
@@ -1280,6 +1241,53 @@ export default function AnalysisDashboard() {
               } catch (err) {
                 console.error("Failed to fetch grid data:", err);
               }
+            }}
+          />
+
+          {/* Image Panel */}
+          <ImagePanel
+            isOpen={isImagePanelOpen}
+            onClose={() => setIsImagePanelOpen(false)}
+            onAddImage={(config) => {
+              const id = `img-${Date.now()}`;
+              setDashboardBlocks((prev) => [
+                ...prev,
+                {
+                  type: "image",
+                  id,
+                  data: {
+                    id,
+                    imageUrl: config.imageUrl,
+                    appearance: config.appearance,
+                  },
+                },
+              ]);
+              setIsImagePanelOpen(false);
+            }}
+          />
+
+          {/* Header Panel */}
+          <HeaderPanel
+            isOpen={isHeaderPanelOpen}
+            onClose={() => setIsHeaderPanelOpen(false)}
+            onAddHeader={(config) => {
+              const id = `hdr-${Date.now()}`;
+              setDashboardBlocks((prev) => [
+                ...prev,
+                {
+                  type: "header",
+                  id,
+                  data: {
+                    id,
+                    title: config.title,
+                    description: config.description,
+                    textSize: config.textSize,
+                    textAlignment: config.textAlignment,
+                    backgroundColor: config.backgroundColor,
+                  },
+                },
+              ]);
+              setIsHeaderPanelOpen(false);
             }}
           />
 
