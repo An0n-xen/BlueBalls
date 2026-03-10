@@ -13,6 +13,7 @@ import { RichTextBlock } from "@/components/rich-text-block";
 import { GridPanel } from "@/components/grid-panel";
 import { ImagePanel } from "@/components/image-panel";
 import { HeaderPanel } from "@/components/header-panel";
+import { ColumnBarPanel } from "@/components/column-bar-panel";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -195,6 +196,9 @@ export default function AnalysisDashboard() {
   // Grid Panel state
   const [isGridPanelOpen, setIsGridPanelOpen] = useState(false);
 
+  // Column & Bar Panel state
+  const [isColumnBarPanelOpen, setIsColumnBarPanelOpen] = useState(false);
+
   // Image Panel state
   const [isImagePanelOpen, setIsImagePanelOpen] = useState(false);
 
@@ -225,17 +229,20 @@ export default function AnalysisDashboard() {
     const handleGridPanel = () => setIsGridPanelOpen(true);
     const handleImagePanel = () => setIsImagePanelOpen(true);
     const handleHeaderPanel = () => setIsHeaderPanelOpen(true);
+    const handleColumnBarPanel = () => setIsColumnBarPanelOpen(true);
     window.addEventListener("open-metric-kpi", handleMetricKpi);
     window.addEventListener("add-rich-text-block", handleRichText);
     window.addEventListener("open-grid-panel", handleGridPanel);
     window.addEventListener("open-image-panel", handleImagePanel);
     window.addEventListener("open-header-panel", handleHeaderPanel);
+    window.addEventListener("open-column-bar-panel", handleColumnBarPanel);
     return () => {
       window.removeEventListener("open-metric-kpi", handleMetricKpi);
       window.removeEventListener("add-rich-text-block", handleRichText);
       window.removeEventListener("open-grid-panel", handleGridPanel);
       window.removeEventListener("open-image-panel", handleImagePanel);
       window.removeEventListener("open-header-panel", handleHeaderPanel);
+      window.removeEventListener("open-column-bar-panel", handleColumnBarPanel);
     };
   }, []);
 
@@ -1183,6 +1190,15 @@ export default function AnalysisDashboard() {
             fileName={file?.name || null}
             onAddKpi={handleAddKpi}
             isComputing={isComputingKpi}
+          />
+
+          {/* Column & Bar Panel */}
+          <ColumnBarPanel
+            open={isColumnBarPanelOpen}
+            onClose={() => setIsColumnBarPanelOpen(false)}
+            schema={schema}
+            datasetId={datasetId}
+            datasetName={file?.name || "No dataset loaded"}
           />
 
           {/* Grid Panel */}

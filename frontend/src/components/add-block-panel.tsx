@@ -168,9 +168,20 @@ export function AddBlockPanel({ open, onClose }: { open: boolean, onClose: () =>
         <div>
           <h4 className="text-[11px] font-semibold text-gray-500 mb-3 px-1 select-none uppercase tracking-wider">Visualize</h4>
           <div className="grid grid-cols-2 gap-x-2 gap-y-1">
-            {visualizeItems.map((item) => (
-              <ItemButton key={item.title} icon={item.icon} title={item.title} />
-            ))}
+            {visualizeItems.map((item) => {
+              const eventMap: Record<string, string> = {
+                "Column & Bar": "open-column-bar-panel",
+              }
+              const eventName = eventMap[item.title]
+              return (
+                <ItemButton 
+                  key={item.title} 
+                  icon={item.icon} 
+                  title={item.title} 
+                  onClick={eventName ? () => window.dispatchEvent(new CustomEvent(eventName)) : undefined}
+                />
+              )
+            })}
           </div>
         </div>
 
